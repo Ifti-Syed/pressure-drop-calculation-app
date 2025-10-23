@@ -30,11 +30,11 @@ if "export_columns" not in st.session_state:
 st.markdown("<div class='top-bar'><h2>🌀 Pressure Drop Calculation Tool</h2></div>", unsafe_allow_html=True)
 
 # ------------------- Customer Info -------------------
-col1, col2, col3 = st.columns([2,2,1])
+col1, col2, col3 = st.columns([2, 2, 1])
 with col1:
-    customer = st.text_input("Customer Name", value=st.session_state.get("customer",""))
+    customer = st.text_input("Customer Name", value=st.session_state.get("customer", ""))
 with col2:
-    project = st.text_input("Project Name", value=st.session_state.get("project",""))
+    project = st.text_input("Project Name", value=st.session_state.get("project", ""))
 with col3:
     report_date = st.date_input("Date", value=date.today())
 
@@ -42,8 +42,6 @@ st.session_state.customer = customer
 st.session_state.project = project
 
 st.markdown("---")
-
-
 
 st.subheader("📂 Bulk Upload Data (CSV / Excel)")
 uploaded_file = st.file_uploader(
@@ -155,7 +153,7 @@ height_mm = height
 if width_mm > 0 and height_mm > 0 and airflow > 0 and c_factor > 0:
     preview = damper_selection(airflow, width_mm, height_mm, c_factor, max_width, max_height)
     if preview:
-        st.text_input("Overall Pressure Drop (Pa)", value=preview["Pressure Drop (Pa)"], disabled=True)
+        st.text_input("Total Pressure Drop (Pa)", value=preview["Total Pressure Drop (Pa)"], disabled=True)
 else:
     st.info("Enter Width, Height, Airflow and select a valid size to preview calculation.")
 
@@ -185,6 +183,21 @@ if not st.session_state.damper_table.empty:
     if "Select" not in display_table.columns:
         display_table.insert(0, "Select", False)
 
+    # Add serial number
+    display_table.insert(0, "Sr No", range(1, len(display_table) + 1))
+
+    # Define column order
+    column_order = [
+        "Sr No", "Select", "Product", "Model", "Width (mm)", "Height (mm)",
+        "Airflow (L/s)", "Total Area (m²)", "Velocity (m/s)", "Section Size",
+        "Section Area (m²)", "No of Sections", "Section Velocity (m/s)",
+        "Section Pressure Drop (Pa)", "Total Pressure Drop (Pa)"
+    ]
+
+    # Reorder columns
+    existing_columns = [col for col in column_order if col in display_table.columns]
+    display_table = display_table[existing_columns]
+
     edited_df = st.data_editor(
         display_table,
         key="data_editor",
@@ -193,12 +206,18 @@ if not st.session_state.damper_table.empty:
         hide_index=True
     )
 
+    # ✅ CRITICAL: Update session state with edited data (excluding temporary columns)
+    if not edited_df.empty:
+        # Remove temporary columns before saving to session state
+        edited_data = edited_df.drop(columns=['Select', 'Sr No'], errors='ignore')
+        st.session_state.damper_table = edited_data.reset_index(drop=True)
+
     if "Select" in edited_df.columns:
         selected_rows = edited_df[edited_df["Select"] == True].index.tolist()
         st.session_state.rows_to_delete = selected_rows
 
     st.subheader("📤 Export Settings")
-    available_columns = [col for col in st.session_state.damper_table.columns if col not in ['Select']]
+    available_columns = [col for col in st.session_state.damper_table.columns if col not in ['Select', 'Sr No']]
 
     if not st.session_state.export_columns:
         st.session_state.export_columns = available_columns
@@ -215,6 +234,7 @@ if not st.session_state.damper_table.empty:
 
     col1, col2, col3, col4 = st.columns(4)
 
+
     # ✅ DELETE CONFIRMATION DIALOG
     @st.dialog("⚠️ Confirm Deletion")
     def confirm_delete_dialog():
@@ -222,6 +242,7 @@ if not st.session_state.damper_table.empty:
         colA, colB = st.columns(2)
         with colA:
             if st.button("✅ Yes, Delete", use_container_width=True):
+                # Use the current session state data for deletion
                 st.session_state.damper_table = st.session_state.damper_table.drop(
                     st.session_state.rows_to_delete
                 ).reset_index(drop=True)
@@ -231,6 +252,7 @@ if not st.session_state.damper_table.empty:
         with colB:
             if st.button("❌ Cancel", use_container_width=True):
                 st.rerun()
+
 
     # ✅ CLEAR ALL CONFIRMATION DIALOG
     @st.dialog("⚠️ Confirm Clear All")
@@ -247,6 +269,7 @@ if not st.session_state.damper_table.empty:
             if st.button("❌ Cancel", use_container_width=True):
                 st.rerun()
 
+
     with col1:
         if st.button("🗑️ Delete Selected", use_container_width=True):
             if st.session_state.rows_to_delete:
@@ -261,10 +284,30 @@ if not st.session_state.damper_table.empty:
             else:
                 st.info("No data to clear.")
 
+    # Define short column names mapping
+    short_column_mapping = {
+        "Width (mm)": "w(mm)",
+        "Height (mm)": "H(mm)",
+        "Airflow (L/s)": "Airflow",
+        "Total Area (m²)": "Total Area",
+        "Velocity (m/s)": "Vel",
+        "Section Size": "Sect Size",
+        "Section Area (m²)": "Sect Area",
+        "No of Sections": "No_Sect",
+        "Section Velocity (m/s)": "sec vel",
+        "Section Pressure Drop (Pa)": "sec pd",
+        "Total Pressure Drop (Pa)": "total pd",
+        "Product": "Product",
+        "Model": "Model"
+    }
+
     with col3:
         if selected_columns:
+            # Use the updated session state data for export
             export_data = st.session_state.damper_table[selected_columns]
-            csv_data = export_data.to_csv(index=False)
+            # Apply short column names
+            export_data_short = export_data.rename(columns=short_column_mapping)
+            csv_data = export_data_short.to_csv(index=False)
             st.download_button(
                 "💾 Save to CSV",
                 csv_data,
@@ -277,8 +320,11 @@ if not st.session_state.damper_table.empty:
 
     with col4:
         if selected_columns:
+            # Use the updated session state data for export
             export_data = st.session_state.damper_table[selected_columns]
-            pdf_data = save_table_as_pdf(export_data, customer, project, report_date)
+            # Apply short column names for PDF
+            export_data_short = export_data.rename(columns=short_column_mapping)
+            pdf_data = save_table_as_pdf(export_data_short, customer, project, report_date)
             st.download_button(
                 "📄 Save to PDF",
                 pdf_data,
