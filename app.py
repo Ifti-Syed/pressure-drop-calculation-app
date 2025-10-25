@@ -173,7 +173,6 @@ if st.button("➕ Add to Table"):
 st.markdown("---")
 
 # ------------------- Project Summary -------------------
-# ------------------- Project Summary -------------------
 st.subheader("📊 Project Summary")
 
 if not st.session_state.damper_table.empty:
@@ -186,10 +185,11 @@ if not st.session_state.damper_table.empty:
     # Add serial number
     display_table.insert(0, "Sr No", range(1, len(display_table) + 1))
 
-    # Define column order
+    # Define column order (including new Max Section columns)
     column_order = [
         "Sr No", "Select", "Product", "Model", "Width (mm)", "Height (mm)",
-        "Airflow (L/s)", "Total Area (m²)", "Velocity (m/s)", "Section Size",
+        "Airflow (L/s)", "Total Area (m²)", "Velocity (m/s)",
+        "Max Section Width (mm)", "Max Section Height (mm)", "Section Size",
         "Section Area (m²)", "No of Sections", "Section Velocity (m/s)",
         "Section Pressure Drop (Pa)", "Total Pressure Drop (Pa)"
     ]
@@ -234,7 +234,6 @@ if not st.session_state.damper_table.empty:
 
     col1, col2, col3, col4 = st.columns(4)
 
-
     # ✅ DELETE CONFIRMATION DIALOG
     @st.dialog("⚠️ Confirm Deletion")
     def confirm_delete_dialog():
@@ -253,7 +252,6 @@ if not st.session_state.damper_table.empty:
             if st.button("❌ Cancel", use_container_width=True):
                 st.rerun()
 
-
     # ✅ CLEAR ALL CONFIRMATION DIALOG
     @st.dialog("⚠️ Confirm Clear All")
     def confirm_clear_dialog():
@@ -269,7 +267,6 @@ if not st.session_state.damper_table.empty:
             if st.button("❌ Cancel", use_container_width=True):
                 st.rerun()
 
-
     with col1:
         if st.button("🗑️ Delete Selected", use_container_width=True):
             if st.session_state.rows_to_delete:
@@ -284,21 +281,24 @@ if not st.session_state.damper_table.empty:
             else:
                 st.info("No data to clear.")
 
-    # Define short column names mapping
+    # Define short column names mapping (updated with new columns)
     short_column_mapping = {
+        "Sr No": "S.no",
+        "Product": "Product",
+        "Model": "Model",
         "Width (mm)": "w(mm)",
         "Height (mm)": "H(mm)",
-        "Airflow (L/s)": "Airflow",
-        "Total Area (m²)": "Total Area",
-        "Velocity (m/s)": "Vel",
-        "Section Size": "Sect Size",
-        "Section Area (m²)": "Sect Area",
-        "No of Sections": "No_Sect",
-        "Section Velocity (m/s)": "sec vel",
-        "Section Pressure Drop (Pa)": "sec pd",
-        "Total Pressure Drop (Pa)": "total pd",
-        "Product": "Product",
-        "Model": "Model"
+        "Airflow (L/s)": "Airflow(l/s)",
+        "Total Area (m²)": "T_Area(m²)",
+        "Velocity (m/s)": "Vel(m/s)",
+        "Max Section Width (mm)": "MaxW(mm)",
+        "Max Section Height (mm)": "MaxH(mm)",
+        "Section Size": "SecSize",
+        "Section Area (m²)": "SecArea(m²)",
+        "No of Sections": "No_Sec",
+        "Section Velocity (m/s)": "SecVel(m/s)",
+        "Section Pressure Drop (Pa)": "SecPd",
+        "Total Pressure Drop (Pa)": "T_Pd"
     }
 
     with col3:
@@ -342,3 +342,4 @@ st.markdown(
     "<div class='footer'>🌀 Pressure Drop Calculation Tool — Central Ventilation Systems</div>",
     unsafe_allow_html=True,
 )
+
