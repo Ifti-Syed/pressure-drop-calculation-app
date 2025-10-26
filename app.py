@@ -6,6 +6,7 @@ from config import DEFAULT_PRODUCTS
 from helpers import damper_selection, get_c_factor_from_backend, save_table_as_pdf
 import styles  # Loads CSS automatically
 
+
 styles.load_styles()
 # ------------------- Page Config -------------------
 st.set_page_config(
