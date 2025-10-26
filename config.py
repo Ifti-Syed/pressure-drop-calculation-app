@@ -1,5 +1,5 @@
 import pandas as pd
-
+# Product category ,name ,size and c_factor
 DEFAULT_PRODUCTS = {
     "Fire Damper": {
         "FD-MB-3V": [

@@ -4,10 +4,11 @@ import pandas as pd
 
 from config import DEFAULT_PRODUCTS
 from helpers import damper_selection, get_c_factor_from_backend, save_table_as_pdf
-import styles  # Loads CSS automatically
+import styles
 
-
+# Loads CSS automatically
 styles.load_styles()
+
 # ------------------- Page Config -------------------
 st.set_page_config(
     page_title="Pressure Drop Calculation Tool",
@@ -30,7 +31,9 @@ if "export_columns" not in st.session_state:
 # ------------------- Header -------------------
 st.markdown("<div class='top-bar'><h2>🌀 Pressure Drop Calculation Tool</h2></div>", unsafe_allow_html=True)
 
+
 # ------------------- Customer Info -------------------
+
 col1, col2, col3 = st.columns([2, 2, 1])
 with col1:
     customer = st.text_input("Customer Name", value=st.session_state.get("customer", ""))
@@ -343,4 +346,7 @@ st.markdown(
     "<div class='footer'>🌀 Pressure Drop Calculation Tool — Central Ventilation Systems</div>",
     unsafe_allow_html=True,
 )
+
+
+
 
