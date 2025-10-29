@@ -1,6 +1,10 @@
 import pandas as pd
+
+# Categories
+CATEGORIES = ["Life Safety Damper"]
 # Product category ,name ,size and c_factor
 DEFAULT_PRODUCTS = {
+# _____________________________Fire Damper______________________
     "Fire Damper": {
         "FD-MB-3V": [
             {"width": 300, "height": 300, "c_factor": 1.1152},
@@ -111,6 +115,8 @@ DEFAULT_PRODUCTS = {
             {"width": 600, "height": 600, "c_factor": 0.2421}
         ]
     },
+
+    # _____________________________Fire & Smoke Damper______________________
     "Fire & Smoke Damper": {
         # ... every model fully listed here (FSD-3V, FSD-AF, etc.) ...
         "FSD-3V-211-1.5 HR Class I": [
@@ -203,23 +209,42 @@ DEFAULT_PRODUCTS = {
             {"width": 300, "height": 300, "c_factor": 0.6026},
             {"width": 600, "height": 600, "c_factor": 0.2421}
         ],
-        "F/S-AFM-PB-I & F/S-AFM-OB-I Modulating 1.5 HR, Class I": [
+        "F/S-AFM-PB-I ": [
             {"width": 300, "height": 300, "c_factor": 0.6026},
             {"width": 600, "height": 600, "c_factor": 0.2421}
         ],
-        "F/S-AFM-PB-II & F/S-AFM-OB-II Modulating 1.5 HR, Class II": [
+        "F/S-AFM-OB-I": [
             {"width": 300, "height": 300, "c_factor": 0.6026},
             {"width": 600, "height": 600, "c_factor": 0.2421}
         ],
-        "F/S-AFM-PB-3-I & F/S-AFM-OB-3-I Modulating 3 HR, Class I": [
+        "F/S-AFM-PB-II": [
             {"width": 300, "height": 300, "c_factor": 0.6026},
             {"width": 600, "height": 600, "c_factor": 0.2421}
         ],
-        "F/S-AFM-PB-3-II & F/S-AFM-OB-3-II Modulating 3 HR, Class II": [
+        "F/S-AFMg-OB-II": [
+            {"width": 300, "height": 300, "c_factor": 0.6026},
+            {"width": 600, "height": 600, "c_factor": 0.2421}
+        ],
+
+        "F/S-AFM-PB-3-I": [
+            {"width": 300, "height": 300, "c_factor": 0.6026},
+            {"width": 600, "height": 600, "c_factor": 0.2421}
+        ],
+        "F/S-AFM-OB-3-I": [
+            {"width": 300, "height": 300, "c_factor": 0.6026},
+            {"width": 600, "height": 600, "c_factor": 0.2421}
+        ],
+        "F/S-AFM-PB-3-II": [
+            {"width": 300, "height": 300, "c_factor": 0.6026},
+            {"width": 600, "height": 600, "c_factor": 0.2421}
+        ],
+        "F/S-AFM-OB-3-II": [
             {"width": 300, "height": 300, "c_factor": 0.6026},
             {"width": 600, "height": 600, "c_factor": 0.2421}
         ]
     },
+
+    # _____________________________Smoke Damper______________________
     "Smoke Damper": {
         "SSD-3V-201 CLASS I": [
             {"width": 300, "height": 300, "c_factor": 1.1152},
@@ -275,11 +300,19 @@ DEFAULT_PRODUCTS = {
             {"width": 300, "height": 300, "c_factor": 0.6026},
             {"width": 600, "height": 600, "c_factor": 0.2421}
         ],
-        "S-AFM-PB-I & S-AFM-OB-I Modulating Class I": [
+        "S-AFM-PB-I": [
             {"width": 300, "height": 300, "c_factor": 0.6026},
             {"width": 600, "height": 600, "c_factor": 0.2421}
         ],
-        "S-AFM-PB-II & S-AFM-OB-II Modulating Class II": [
+        "S-AFM-OB-I": [
+            {"width": 300, "height": 300, "c_factor": 0.6026},
+            {"width": 600, "height": 600, "c_factor": 0.2421}
+        ],
+        "S-AFM-PB-II": [
+            {"width": 300, "height": 300, "c_factor": 0.6026},
+            {"width": 600, "height": 600, "c_factor": 0.2421}
+        ],
+        "S-AFM-OB-II": [
             {"width": 300, "height": 300, "c_factor": 0.6026},
             {"width": 600, "height": 600, "c_factor": 0.2421}
         ]
