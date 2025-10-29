@@ -829,7 +829,7 @@ def process_uploaded_file(uploaded_file):
                 product_val = row.get("Product", "")
                 model_val = row.get("Model", "")
                 max_size_str = row.get("MaxSize", "")
-                safety_val = row.get("Safety Factor", 5.0)
+                safety_val = row.get("Safety Factor", 0)
 
                 # Parse MaxSize string (format: "300×300")
                 if max_size_str and "×" in max_size_str:
