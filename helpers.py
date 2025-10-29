@@ -259,18 +259,12 @@ def save_table_as_pdf(df, customer, project, report_date):
                 pdf.cell(col_width, 8, cell_value, 1, 0, "C")
             pdf.ln()
 
-        # Return as bytes using a temporary file approach
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
-            pdf.output(tmp_file.name)
-            with open(tmp_file.name, 'rb') as f:
-                pdf_bytes = f.read()
-
-        # Clean up temporary file
-        os.unlink(tmp_file.name)
+        # Return PDF as bytes using output(dest='S') method
+        pdf_output = pdf.output(dest='S')  # 'S' returns as string
+        pdf_bytes = pdf_output.encode('latin-1')
 
         return pdf_bytes
 
     except Exception as e:
         st.error(f"PDF generation error: {e}")
-        # Return empty bytes if PDF generation fails
         return b""
