@@ -1,6 +1,4 @@
-
-# # _____________________________________________________________________________________________________________________
-# #perfect working code
+#
 # # app.py
 # import streamlit as st
 # from datetime import date
@@ -88,31 +86,79 @@
 #         st.success(f"✅ File '{uploaded_file.name}' uploaded ({len(df)} rows).")
 #         st.dataframe(df.head())
 #
+#         # Updated required columns with multiple alternative names
 #         required = [
-#             "Width (mm)", "Height (mm)", "Airflow (L/s)",
-#             "Product", "Model", "Max Width (mm)", "Max Height (mm)"
+#             ["Tag", "tag"],  # Tag column alternatives
+#             ["Width (mm)", "W(mm)", "w_mm"],  # Width column alternatives
+#             ["Height (mm)", "H(mm)", "H_mm"],  # Height column alternatives
+#             ["Airflow (L/s)", "Airflow(l/s)"],  # Airflow column alternatives
+#             ["Product", "product_name"],  # Product column alternatives
+#             ["Model", "model"],  # Model column alternatives
+#             ["MaxSize", "maxsize"],  # MaxSize column alternatives
+#             ["Safety Factor", "SF(%)", "Safety Factor (%)"]  # Safety Factor alternatives
 #         ]
-#         missing = [c for c in required if c not in df.columns]
 #
-#         if missing:
-#             st.warning(f"Missing columns: {', '.join(missing)}")
+#         # Check for missing columns and find which alternatives exist
+#         missing_columns = []
+#         column_mapping = {}
+#
+#         for column_alternatives in required:
+#             found = False
+#             standard_name = column_alternatives[0]  # Use first name as standard
+#
+#             # Check if any of the alternative names exists in the dataframe
+#             for alt_name in column_alternatives:
+#                 if alt_name in df.columns:
+#                     column_mapping[standard_name] = alt_name
+#                     found = True
+#                     break
+#
+#             if not found:
+#                 missing_columns.append(standard_name)
+#
+#         if missing_columns:
+#             st.warning(f"Missing required columns: {', '.join(missing_columns)}")
+#             st.info("Required columns (accepts any of these names):")
+#             for column_alternatives in required:
+#                 st.write(f"• {column_alternatives[0]} (can be named as: {', '.join(column_alternatives)})")
 #             return
+#
+#         # Create a standardized dataframe with consistent column names
+#         standardized_df = df.copy()
+#
+#         # Rename columns to standard names if they use alternative names
+#         for standard_name, actual_name in column_mapping.items():
+#             if actual_name != standard_name and standard_name not in standardized_df.columns:
+#                 standardized_df = standardized_df.rename(columns={actual_name: standard_name})
 #
 #         results = []
 #         errors = []
 #
-#         for idx, row in df.iterrows():
+#         for idx, row in standardized_df.iterrows():
 #             try:
-#                 airflow_val = row.get("Airflow (L/s)", 0)
+#                 # Extract values using standard column names
+#                 tag_no = row.get("Tag", f"Tag_{idx + 1}")
 #                 w_val = row.get("Width (mm)", 0)
 #                 h_val = row.get("Height (mm)", 0)
+#                 airflow_val = row.get("Airflow (L/s)", 0)
 #                 product_val = row.get("Product", "")
 #                 model_val = row.get("Model", "")
-#                 mw_val = row.get("Max Width (mm)", 0)
-#                 mh_val = row.get("Max Height (mm)", 0)
-#                 tag_no = row.get("Tag No", f"Tag_{idx + 1}")
+#                 max_size_str = row.get("MaxSize", "")
+#                 safety_val = row.get("Safety Factor", 0)
+#
+#                 # Parse MaxSize string (format: "300×300")
+#                 if max_size_str and "×" in max_size_str:
+#                     try:
+#                         mw_val, mh_val = map(int, max_size_str.split("×"))
+#                     except ValueError:
+#                         errors.append(f"Row {idx + 1}: Invalid MaxSize format. Use 'width×height' like '300×300'")
+#                         continue
+#                 else:
+#                     errors.append(f"Row {idx + 1}: MaxSize is required and should be in format 'width×height'")
+#                     continue
+#
+#                 # Get category (optional, default to Life Safety Damper)
 #                 category_val = row.get("Category", "Life Safety Damper")
-#                 safety_val = row.get("Safety Factor (%)", 5.0)
 #
 #                 c_val = get_c_factor_from_backend(product_val, model_val, mw_val, mh_val)
 #
@@ -149,6 +195,11 @@
 #             st.session_state.uploaded_filename = uploaded_file.name
 #             st.session_state.data_editor_key += 1
 #             st.success(f"✅ Calculated and added {len(results)} rows.")
+#
+#             # Show which column names were used
+#             st.info("📋 Column mapping used:")
+#             for standard_name, actual_name in column_mapping.items():
+#                 st.write(f"• {actual_name} → {standard_name}")
 #         else:
 #             st.info("No valid calculation results produced from the file.")
 #
@@ -158,8 +209,17 @@
 #
 # st.subheader("📂 Bulk Upload Data (CSV / Excel)")
 # uploaded_file = st.file_uploader(
-#     "Upload CSV/Excel with columns: Category, Width (mm), Height (mm), Airflow (L/s), Product, Model, Max Width (mm), Max Height (mm), Tag No, Safety Factor (%)",
-#     type=["csv", "xlsx", "xls"]
+#     "Upload CSV/Excel with required columns: Tag, Width (mm), Height (mm), Airflow (L/s), Product, Model, MaxSize, Safety Factor",
+#     type=["csv", "xlsx", "xls"],
+#     help="Accepted column names:\n"
+#          "• Tag: 'Tag' or 'tag'\n"
+#          "• Width: 'Width (mm)', 'W(mm)', or 'w_mm'\n"
+#          "• Height: 'Height (mm)', 'H(mm)', or 'H_mm'\n"
+#          "• Airflow: 'Airflow (L/s)' or 'Airflow(l/s)'\n"
+#          "• Product: 'Product' or 'product_name'\n"
+#          "• Model: 'Model' or 'model'\n"
+#          "• MaxSize: 'MaxSize' or 'maxsize'\n"
+#          "• Safety Factor: 'Safety Factor', 'SF(%)', or 'Safety Factor (%)'"
 # )
 #
 # if uploaded_file is not None:
@@ -241,10 +301,11 @@
 #         height = st.number_input("Height (mm)", min_value=0.0, value=0.0, key="height_input")
 #
 #     with col5:
+#         # Changed default from 5.0 to 0.0
 #         safety_factor_local = st.number_input(
-#             "Safety Factor (%)",
+#             "Safety Factor Per Section (%)",
 #             min_value=0.0,
-#             value=5.0,
+#             value=0.0,  # Changed from 5.0 to 0.0
 #             step=0.5,
 #             key="safety_factor_local"
 #         )
@@ -264,7 +325,7 @@
 #     else:
 #         st.info("Enter Width, Height, Airflow and select a valid size to preview calculation.")
 #
-#     if st.button("➕ Add to Table", width='stretch'):
+#     if st.button("➕ Add to Table", use_container_width=True):
 #         if product == "Select Product" or model == "Select Model" or selected == "Select Size":
 #             st.warning("Select product, model and size first.")
 #         elif not tag_no:
@@ -316,7 +377,8 @@
 #             prod = row.get("Product", "")
 #             mod = row.get("Model", "")
 #             max_size_str = row.get("Max Size", "")
-#             safety_val = float(row.get("Safety Factor (%)", 5.0) or 5.0)
+#             # Changed default from 5.0 to 0.0
+#             safety_val = float(row.get("Safety Factor (%)", 0.0) or 0.0)
 #
 #             # Parse Max Size and get c_factor
 #             max_w = max_h = 0
@@ -391,9 +453,11 @@
 #
 #     # Ensure required columns exist
 #     if "Safety Factor (%)" not in display_table.columns:
-#         display_table["Safety Factor (%)"] = 5.0
+#         # Changed default from 5.0 to 0.0
+#         display_table["Safety Factor (%)"] = 0.0
 #     else:
-#         display_table["Safety Factor (%)"] = display_table["Safety Factor (%)"].fillna(5.0)
+#         # Changed default from 5.0 to 0.0
+#         display_table["Safety Factor (%)"] = display_table["Safety Factor (%)"].fillna(0.0)
 #
 #     if "Max Size" not in display_table.columns:
 #         display_table["Max Size"] = ""
@@ -490,16 +554,16 @@
 #     col1, col2, col3, col4, col5, col6 = st.columns(6)
 #
 #     with col1:
-#         move_up = st.button("⬆️ Move Up", width='stretch', type="secondary")
+#         move_up = st.button("⬆️ Move Up", use_container_width=True, type="secondary")
 #
 #     with col2:
-#         move_down = st.button("⬇️ Move Down", width='stretch', type="secondary")
+#         move_down = st.button("⬇️ Move Down", use_container_width=True, type="secondary")
 #
 #     with col3:
-#         delete = st.button("🗑️ Delete", width='stretch', type="primary")
+#         delete = st.button("🗑️ Delete", use_container_width=True, type="primary")
 #
 #     with col4:
-#         clear = st.button("🧹 Clear", width='stretch', type="primary")
+#         clear = st.button("🧹 Clear", use_container_width=True, type="primary")
 #
 #     # Short column mapping with exact names as requested
 #     short_column_mapping = {
@@ -510,7 +574,7 @@
 #         "Model": "Model",
 #         "Max Size": "MaxSize",
 #         "Safety Factor (%)": "SF(%)",
-#         "Width (mm)": "w(mm)",
+#         "Width (mm)": "W(mm)",
 #         "Height (mm)": "H(mm)",
 #         "Airflow (L/s)": "Airflow(l/s)",
 #         "Total Area (m²)": "T_Area(m²)",
@@ -541,14 +605,14 @@
 #             st.download_button(
 #                 "💾 Save CSV",
 #                 csv_data,
-#                 file_name=f"{customer}_{project}_results.csv",
+#                 file_name=f"{customer}_{project}.csv",
 #                 mime="text/csv",
-#                 width='stretch',
+#                 use_container_width=True,
 #                 type="primary",
 #                 disabled=len(st.session_state.export_columns) == 0
 #             )
 #         else:
-#             st.button("💾 Save CSV", disabled=True, width='stretch')
+#             st.button("💾 Save CSV", disabled=True, use_container_width=True)
 #
 #     with col6:
 #         if not st.session_state.damper_table.empty:
@@ -562,9 +626,9 @@
 #                     st.download_button(
 #                         "📄 Save PDF",
 #                         data=pdf_bytes,
-#                         file_name=f"{customer}_{project}_results.pdf",
+#                         file_name=f"{customer}_{project}.pdf",
 #                         mime="application/pdf",
-#                         width='stretch',
+#                         use_container_width=True,
 #                         type="primary",
 #                         key=f"pdf_download_{st.session_state.data_editor_key}",
 #                         disabled=len(st.session_state.export_columns) == 0
@@ -574,7 +638,7 @@
 #             except Exception as e:
 #                 st.error(f"Error generating PDF: {e}")
 #         else:
-#             st.button("📄 Save PDF", disabled=True, width='stretch')
+#             st.button("📄 Save PDF", disabled=True, use_container_width=True)
 #
 #     # Handle button actions after defining all buttons
 #     if move_up:
@@ -639,7 +703,7 @@
 #         display_table,
 #         key=f"data_editor_{st.session_state.data_editor_key}",
 #         num_rows="dynamic",
-#         width='stretch',
+#         use_container_width=True,
 #         hide_index=True,
 #         column_config=column_config
 #     )
@@ -684,7 +748,6 @@
 
 
 # app.py
-# app.py
 import streamlit as st
 from datetime import date
 import pandas as pd
@@ -725,6 +788,10 @@ def initialize_session_state():
         st.session_state.project = ""
     if "data_editor_key" not in st.session_state:
         st.session_state.data_editor_key = 0
+    if "rows_to_delete" not in st.session_state:
+        st.session_state.rows_to_delete = []
+    if "has_unsaved_changes" not in st.session_state:
+        st.session_state.has_unsaved_changes = False
 
 
 initialize_session_state()
@@ -740,12 +807,14 @@ col1, col2, col3 = st.columns([2, 2, 1])
 with col1:
     customer = st.text_input(
         "Customer Name",
-        value=st.session_state.get("customer", "")
+        value=st.session_state.get("customer", ""),
+        on_change=lambda: setattr(st.session_state, 'has_unsaved_changes', True)
     )
 with col2:
     project = st.text_input(
         "Project Name",
-        value=st.session_state.get("project", "")
+        value=st.session_state.get("project", ""),
+        on_change=lambda: setattr(st.session_state, 'has_unsaved_changes', True)
     )
 with col3:
     report_date = st.date_input("Date", value=date.today())
@@ -879,12 +948,13 @@ def process_uploaded_file(uploaded_file):
             )
             st.session_state.uploaded_filename = uploaded_file.name
             st.session_state.data_editor_key += 1
+            st.session_state.has_unsaved_changes = True
             st.success(f"✅ Calculated and added {len(results)} rows.")
 
             # Show which column names were used
-            st.info("📋 Column mapping used:")
-            for standard_name, actual_name in column_mapping.items():
-                st.write(f"• {actual_name} → {standard_name}")
+            # st.info("📋 Column mapping used:")
+            # for standard_name, actual_name in column_mapping.items():
+            #     st.write(f"• {actual_name} → {standard_name}")
         else:
             st.info("No valid calculation results produced from the file.")
 
@@ -952,10 +1022,14 @@ def handle_manual_calculation():
         sorted_sizes = sorted(sizes, key=lambda x: x['width'] * x['height'], reverse=True)
         size_options = [f"{s['width']}×{s['height']}" for s in sorted_sizes]
 
+        # Automatically select the largest size (first in sorted_sizes)
+        default_size = size_options[0] if size_options else "Select Size"
+
         with col4:
             selected = st.selectbox(
                 "Max Size",
-                options=["Select Size"] + size_options,
+                options=size_options,
+                index=0,  # Select largest by default
                 key="size_select"
             )
 
@@ -986,11 +1060,10 @@ def handle_manual_calculation():
         height = st.number_input("Height (mm)", min_value=0.0, value=0.0, key="height_input")
 
     with col5:
-        # Changed default from 5.0 to 0.0
         safety_factor_local = st.number_input(
-            "Safety Factor (%)",
+            "Safety Factor Per Section (%)",
             min_value=0.0,
-            value=0.0,  # Changed from 5.0 to 0.0
+            value=0.0,
             step=0.5,
             key="safety_factor_local"
         )
@@ -1030,6 +1103,7 @@ def handle_manual_calculation():
                     ignore_index=True
                 )
                 st.session_state.data_editor_key += 1
+                st.session_state.has_unsaved_changes = True
                 st.success("✅ Manual calculation added to table.")
                 st.rerun()
 
@@ -1062,7 +1136,6 @@ def handle_table_edits(edited_df):
             prod = row.get("Product", "")
             mod = row.get("Model", "")
             max_size_str = row.get("Max Size", "")
-            # Changed default from 5.0 to 0.0
             safety_val = float(row.get("Safety Factor (%)", 0.0) or 0.0)
 
             # Parse Max Size and get c_factor
@@ -1103,7 +1176,7 @@ def handle_table_edits(edited_df):
 
 
 def handle_row_movement(direction, selected_indices):
-    """Handle moving rows up or down"""
+    """Handle moving rows up or down and clear selection after move"""
     if not selected_indices:
         st.warning("Please select rows to move first (use the checkboxes).")
         return False
@@ -1128,6 +1201,9 @@ def handle_row_movement(direction, selected_indices):
                 )
 
     st.session_state.damper_table = current_data.reset_index(drop=True)
+    # Clear selection after move
+    st.session_state.selected_rows = set()
+    st.session_state.has_unsaved_changes = True
     st.session_state.data_editor_key += 1
     return True
 
@@ -1138,10 +1214,8 @@ def prepare_display_table():
 
     # Ensure required columns exist
     if "Safety Factor (%)" not in display_table.columns:
-        # Changed default from 5.0 to 0.0
         display_table["Safety Factor (%)"] = 0.0
     else:
-        # Changed default from 5.0 to 0.0
         display_table["Safety Factor (%)"] = display_table["Safety Factor (%)"].fillna(0.0)
 
     if "Max Size" not in display_table.columns:
@@ -1231,11 +1305,49 @@ def get_export_data_in_order(selected_columns):
     return export_data
 
 
+# ✅ DELETE CONFIRMATION DIALOG
+@st.dialog("⚠️ Confirm Deletion")
+def confirm_delete_dialog():
+    st.write("Are you sure you want to delete the **selected rows**?")
+    colA, colB = st.columns(2)
+    with colA:
+        if st.button("✅ Yes, Delete", use_container_width=True):
+            st.session_state.damper_table = st.session_state.damper_table.drop(
+                st.session_state.rows_to_delete
+            ).reset_index(drop=True)
+            st.session_state.rows_to_delete = []
+            st.session_state.selected_rows = set()
+            st.session_state.has_unsaved_changes = True
+            st.success("✅ Selected rows deleted successfully!")
+            st.rerun()
+    with colB:
+        if st.button("❌ Cancel", use_container_width=True):
+            st.rerun()
+
+
+# ✅ CLEAR ALL CONFIRMATION DIALOG
+@st.dialog("⚠️ Confirm Clear All")
+def confirm_clear_dialog():
+    st.write("Are you sure you want to **clear the entire table**?")
+    st.warning("⚠️ This action cannot be undone.")
+    colA, colB = st.columns(2)
+    with colA:
+        if st.button("✅ Yes, Clear All", use_container_width=True):
+            st.session_state.damper_table = pd.DataFrame()
+            st.session_state.selected_rows = set()
+            st.session_state.has_unsaved_changes = True
+            st.success("✅ Table cleared!")
+            st.rerun()
+    with colB:
+        if st.button("❌ Cancel", use_container_width=True):
+            st.rerun()
+
+
 def handle_table_actions(selected_indices):
     """Handle all table actions (delete, clear, export)"""
     st.subheader("📤 Table Actions")
 
-    # Action buttons in a single row - all 6 buttons together
+    # Action buttons in a single row
     col1, col2, col3, col4, col5, col6 = st.columns(6)
 
     with col1:
@@ -1245,10 +1357,19 @@ def handle_table_actions(selected_indices):
         move_down = st.button("⬇️ Move Down", use_container_width=True, type="secondary")
 
     with col3:
-        delete = st.button("🗑️ Delete", use_container_width=True, type="primary")
+        if st.button("🗑️ Delete Selected", use_container_width=True, type="primary"):
+            if selected_indices:
+                st.session_state.rows_to_delete = selected_indices
+                confirm_delete_dialog()
+            else:
+                st.warning("Please select rows to delete first.")
 
     with col4:
-        clear = st.button("🧹 Clear", use_container_width=True, type="primary")
+        if st.button("🧹 Clear All", use_container_width=True, type="primary"):
+            if not st.session_state.damper_table.empty:
+                confirm_clear_dialog()
+            else:
+                st.info("No data to clear.")
 
     # Short column mapping with exact names as requested
     short_column_mapping = {
@@ -1259,7 +1380,7 @@ def handle_table_actions(selected_indices):
         "Model": "Model",
         "Max Size": "MaxSize",
         "Safety Factor (%)": "SF(%)",
-        "Width (mm)": "w(mm)",
+        "Width (mm)": "W(mm)",
         "Height (mm)": "H(mm)",
         "Airflow (L/s)": "Airflow(l/s)",
         "Total Area (m²)": "T_Area(m²)",
@@ -1290,7 +1411,7 @@ def handle_table_actions(selected_indices):
             st.download_button(
                 "💾 Save CSV",
                 csv_data,
-                file_name=f"{customer}_{project}_results.csv",
+                file_name=f"{customer}_{project}.csv",
                 mime="text/csv",
                 use_container_width=True,
                 type="primary",
@@ -1311,7 +1432,7 @@ def handle_table_actions(selected_indices):
                     st.download_button(
                         "📄 Save PDF",
                         data=pdf_bytes,
-                        file_name=f"{customer}_{project}_results.pdf",
+                        file_name=f"{customer}_{project}.pdf",
                         mime="application/pdf",
                         use_container_width=True,
                         type="primary",
@@ -1335,27 +1456,6 @@ def handle_table_actions(selected_indices):
         if handle_row_movement("down", selected_indices):
             st.success("✅ Selected rows moved down!")
             st.rerun()
-
-    if delete:
-        if selected_indices:
-            new_table = st.session_state.damper_table.drop(selected_indices).reset_index(drop=True)
-            st.session_state.damper_table = new_table
-            st.session_state.selected_rows = set()
-            st.session_state.data_editor_key += 1
-            st.success("✅ Selected rows deleted successfully!")
-            st.rerun()
-        else:
-            st.warning("Please select rows to delete first.")
-
-    if clear:
-        if not st.session_state.damper_table.empty:
-            st.session_state.damper_table = pd.DataFrame()
-            st.session_state.selected_rows = set()
-            st.session_state.data_editor_key += 1
-            st.success("✅ Table cleared!")
-            st.rerun()
-        else:
-            st.info("No data to clear.")
 
     # Column selection for export - placed below the table action buttons, spanning full width
     if not st.session_state.damper_table.empty:
@@ -1415,6 +1515,7 @@ if not st.session_state.damper_table.empty:
             edited_df = handle_table_edits(edited_df)
             edited_data = edited_df.drop(columns=['Select', 'Sr No'], errors='ignore')
             st.session_state.damper_table = edited_data.reset_index(drop=True)
+            st.session_state.has_unsaved_changes = True
             st.session_state.data_editor_key += 1
             st.rerun()
 
@@ -1430,3 +1531,85 @@ st.markdown(
     "<div class='footer'>🌀 Pressure Drop Calculation Tool — Central Ventilation Systems</div>",
     unsafe_allow_html=True,
 )
+
+# Enhanced JavaScript for page leave confirmation with better detection
+leave_warning_js = """
+<script>
+// Function to check if there's data that might be lost
+function hasUnsavedData() {
+    // Check if there's any data in the table
+    const dataFrame = document.querySelector('[data-testid="stDataFrame"]');
+    if (dataFrame) {
+        return true;
+    }
+
+    // Check if there are any input fields with values
+    const inputs = document.querySelectorAll('input[type="text"], input[type="number"], textarea');
+    for (let input of inputs) {
+        if (input.value && input.value.trim() !== '') {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// Set up beforeunload event listener
+window.addEventListener('beforeunload', function (e) {
+    // This is a simplified check - in a real app you might want more sophisticated logic
+    const hasData = hasUnsavedData();
+
+    if (hasData) {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+        return 'You have unsaved changes. Are you sure you want to leave?';
+    }
+});
+
+// Also set up for page hide (for tab/window closing)
+window.addEventListener('pagehide', function (e) {
+    const hasData = hasUnsavedData();
+
+    if (hasData) {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+        return 'You have unsaved changes. Are you sure you want to leave?';
+    }
+});
+
+// Enhanced detection for Streamlit-specific elements
+function checkForStreamlitData() {
+    // Check for data editor
+    const dataEditor = document.querySelector('[data-testid="stDataFrame"]');
+    if (dataEditor) {
+        return true;
+    }
+
+    // Check for any tables with data
+    const tables = document.querySelectorAll('table');
+    for (let table of tables) {
+        const rows = table.querySelectorAll('tr');
+        if (rows.length > 1) { // More than just header row
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// Periodically check for data
+setInterval(function() {
+    window.hasUnsavedChanges = checkForStreamlitData() || hasUnsavedData();
+}, 2000);
+</script>
+"""
+
+# Inject the JavaScript
+st.components.v1.html(leave_warning_js, height=0)
+
+# Also add a hidden element to track unsaved changes
+if st.session_state.has_unsaved_changes:
+    st.markdown(
+        '<div id="unsaved-changes-marker" style="display: none;">UNSAVED_CHANGES</div>',
+        unsafe_allow_html=True
+    )
