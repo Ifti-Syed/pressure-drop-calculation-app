@@ -952,14 +952,10 @@ def handle_manual_calculation():
         sorted_sizes = sorted(sizes, key=lambda x: x['width'] * x['height'], reverse=True)
         size_options = [f"{s['width']}×{s['height']}" for s in sorted_sizes]
 
-        # Automatically select the largest size (first in sorted_sizes)
-        default_size = size_options[0] if size_options else "Select Size"
-
         with col4:
             selected = st.selectbox(
                 "Max Size",
-                options=size_options,
-                index=0,  # This selects the first (largest) item by default
+                options=["Select Size"] + size_options,
                 key="size_select"
             )
 
@@ -990,10 +986,11 @@ def handle_manual_calculation():
         height = st.number_input("Height (mm)", min_value=0.0, value=0.0, key="height_input")
 
     with col5:
+        # Changed default from 5.0 to 0.0
         safety_factor_local = st.number_input(
             "Safety Factor (%)",
             min_value=0.0,
-            value=5.0,
+            value=0.0,  # Changed from 5.0 to 0.0
             step=0.5,
             key="safety_factor_local"
         )
@@ -1065,7 +1062,8 @@ def handle_table_edits(edited_df):
             prod = row.get("Product", "")
             mod = row.get("Model", "")
             max_size_str = row.get("Max Size", "")
-            safety_val = float(row.get("Safety Factor (%)", 5.0) or 5.0)
+            # Changed default from 5.0 to 0.0
+            safety_val = float(row.get("Safety Factor (%)", 0.0) or 0.0)
 
             # Parse Max Size and get c_factor
             max_w = max_h = 0
@@ -1105,67 +1103,46 @@ def handle_table_edits(edited_df):
 
 
 def handle_row_movement(direction, selected_indices):
-    """Handle moving multiple rows up or down together - SIMPLIFIED VERSION"""
+    """Handle moving rows up or down"""
     if not selected_indices:
         st.warning("Please select rows to move first (use the checkboxes).")
         return False
 
     current_data = st.session_state.damper_table.reset_index(drop=True)
-    selected_indices = sorted(selected_indices)
-
-    # Create a copy of the data
-    new_data = current_data.copy()
 
     if direction == "up":
-        # Check if we can move up
-        if selected_indices[0] == 0:
-            st.warning("Cannot move rows up - first row is selected.")
-            return False
-
-        # Move each selected row up by swapping with the row above
+        selected_indices = sorted(selected_indices)
         for idx in selected_indices:
-            if idx > 0:
-                # Swap the current row with the row above
-                temp = new_data.iloc[idx - 1].copy()
-                new_data.iloc[idx - 1] = new_data.iloc[idx]
-                new_data.iloc[idx] = temp
-
+            if idx > 0 and (idx - 1) not in selected_indices:
+                current_data.iloc[idx - 1], current_data.iloc[idx] = (
+                    current_data.iloc[idx].copy(),
+                    current_data.iloc[idx - 1].copy()
+                )
     else:  # down
-        # Check if we can move down
-        if selected_indices[-1] == len(current_data) - 1:
-            st.warning("Cannot move rows down - last row is selected.")
-            return False
+        selected_indices = sorted(selected_indices, reverse=True)
+        for idx in selected_indices:
+            if idx < len(current_data) - 1 and (idx + 1) not in selected_indices:
+                current_data.iloc[idx], current_data.iloc[idx + 1] = (
+                    current_data.iloc[idx + 1].copy(),
+                    current_data.iloc[idx].copy()
+                )
 
-        # Move each selected row down by swapping with the row below (process in reverse)
-        for idx in reversed(selected_indices):
-            if idx < len(current_data) - 1:
-                # Swap the current row with the row below
-                temp = new_data.iloc[idx + 1].copy()
-                new_data.iloc[idx + 1] = new_data.iloc[idx]
-                new_data.iloc[idx] = temp
-
-    # Update the session state
-    st.session_state.damper_table = new_data.reset_index(drop=True)
-
-    # Clear selection after move
-    st.session_state.selected_rows = set()
-
+    st.session_state.damper_table = current_data.reset_index(drop=True)
     st.session_state.data_editor_key += 1
     return True
 
 
 def prepare_display_table():
     """Prepare the display table with all necessary columns"""
-    if st.session_state.damper_table.empty:
-        return pd.DataFrame()
-
     display_table = st.session_state.damper_table.copy()
 
     # Ensure required columns exist
     if "Safety Factor (%)" not in display_table.columns:
-        display_table["Safety Factor (%)"] = 5.0
+        # Changed default from 5.0 to 0.0
+        display_table["Safety Factor (%)"] = 0.0
     else:
-        display_table["Safety Factor (%)"] = display_table["Safety Factor (%)"].fillna(5.0)
+        # Changed default from 5.0 to 0.0
+        display_table["Safety Factor (%)"] = display_table["Safety Factor (%)"].fillna(0.0)
 
     if "Max Size" not in display_table.columns:
         display_table["Max Size"] = ""
@@ -1177,12 +1154,10 @@ def prepare_display_table():
 
     # Initialize Select column based on session state
     display_table.insert(1, "Select", False)
-
-    # Only update selections if we have selected rows
-    current_selections = st.session_state.get("selected_rows", set())
-    for idx in current_selections:
-        if idx < len(display_table):
-            display_table.at[idx, "Select"] = True
+    if st.session_state.selected_rows:
+        for idx in st.session_state.selected_rows:
+            if idx < len(display_table):
+                display_table.at[idx, "Select"] = True
 
     # Define column order
     column_order = [
@@ -1260,52 +1235,20 @@ def handle_table_actions(selected_indices):
     """Handle all table actions (delete, clear, export)"""
     st.subheader("📤 Table Actions")
 
-    # Action buttons in a single row
+    # Action buttons in a single row - all 6 buttons together
     col1, col2, col3, col4, col5, col6 = st.columns(6)
 
     with col1:
-        move_up_clicked = st.button("⬆️ Move Up", use_container_width=True, type="secondary")
+        move_up = st.button("⬆️ Move Up", use_container_width=True, type="secondary")
 
     with col2:
-        move_down_clicked = st.button("⬇️ Move Down", use_container_width=True, type="secondary")
+        move_down = st.button("⬇️ Move Down", use_container_width=True, type="secondary")
 
     with col3:
-        delete_clicked = st.button("🗑️ Delete", use_container_width=True, type="primary")
+        delete = st.button("🗑️ Delete", use_container_width=True, type="primary")
 
     with col4:
-        clear_clicked = st.button("🧹 Clear", use_container_width=True, type="primary")
-
-    # Handle button clicks
-    if move_up_clicked:
-        if handle_row_movement("up", selected_indices):
-            st.toast("✅ Selected rows moved up!", icon="✅")
-            st.rerun()
-
-    if move_down_clicked:
-        if handle_row_movement("down", selected_indices):
-            st.toast("✅ Selected rows moved down!", icon="✅")
-            st.rerun()
-
-    if delete_clicked:
-        if selected_indices:
-            new_table = st.session_state.damper_table.drop(selected_indices).reset_index(drop=True)
-            st.session_state.damper_table = new_table
-            st.session_state.selected_rows = set()
-            st.session_state.data_editor_key += 1
-            st.toast("✅ Selected rows deleted successfully!", icon="✅")
-            st.rerun()
-        else:
-            st.warning("Please select rows to delete first.")
-
-    if clear_clicked:
-        if not st.session_state.damper_table.empty:
-            st.session_state.damper_table = pd.DataFrame()
-            st.session_state.selected_rows = set()
-            st.session_state.data_editor_key += 1
-            st.toast("✅ Table cleared!", icon="✅")
-            st.rerun()
-        else:
-            st.info("No data to clear.")
+        clear = st.button("🧹 Clear", use_container_width=True, type="primary")
 
     # Short column mapping with exact names as requested
     short_column_mapping = {
@@ -1316,7 +1259,7 @@ def handle_table_actions(selected_indices):
         "Model": "Model",
         "Max Size": "MaxSize",
         "Safety Factor (%)": "SF(%)",
-        "Width (mm)": "W(mm)",
+        "Width (mm)": "w(mm)",
         "Height (mm)": "H(mm)",
         "Airflow (L/s)": "Airflow(l/s)",
         "Total Area (m²)": "T_Area(m²)",
@@ -1336,9 +1279,10 @@ def handle_table_actions(selected_indices):
     if not st.session_state.export_columns or len(st.session_state.export_columns) == 0:
         st.session_state.export_columns = available_columns
 
-    # Export buttons
+    # Always show CSV and PDF buttons when there's data, just disable if no columns selected
     with col5:
         if not st.session_state.damper_table.empty:
+            # Always show the CSV button, just disable if no columns selected
             export_data = get_export_data_in_order(st.session_state.export_columns)
             export_data_short = export_data.rename(columns=short_column_mapping)
             csv_data = export_data_short.to_csv(index=False)
@@ -1358,6 +1302,7 @@ def handle_table_actions(selected_indices):
     with col6:
         if not st.session_state.damper_table.empty:
             try:
+                # Always show the PDF button, just disable if no columns selected
                 export_data = get_export_data_in_order(st.session_state.export_columns)
                 export_data_short = export_data.rename(columns=short_column_mapping)
                 pdf_bytes = save_table_as_pdf(export_data_short, customer, project, report_date)
@@ -1380,11 +1325,44 @@ def handle_table_actions(selected_indices):
         else:
             st.button("📄 Save PDF", disabled=True, use_container_width=True)
 
-    # Column selection for export
+    # Handle button actions after defining all buttons
+    if move_up:
+        if handle_row_movement("up", selected_indices):
+            st.success("✅ Selected rows moved up!")
+            st.rerun()
+
+    if move_down:
+        if handle_row_movement("down", selected_indices):
+            st.success("✅ Selected rows moved down!")
+            st.rerun()
+
+    if delete:
+        if selected_indices:
+            new_table = st.session_state.damper_table.drop(selected_indices).reset_index(drop=True)
+            st.session_state.damper_table = new_table
+            st.session_state.selected_rows = set()
+            st.session_state.data_editor_key += 1
+            st.success("✅ Selected rows deleted successfully!")
+            st.rerun()
+        else:
+            st.warning("Please select rows to delete first.")
+
+    if clear:
+        if not st.session_state.damper_table.empty:
+            st.session_state.damper_table = pd.DataFrame()
+            st.session_state.selected_rows = set()
+            st.session_state.data_editor_key += 1
+            st.success("✅ Table cleared!")
+            st.rerun()
+        else:
+            st.info("No data to clear.")
+
+    # Column selection for export - placed below the table action buttons, spanning full width
     if not st.session_state.damper_table.empty:
         st.markdown("---")
         st.subheader("📊 Export Settings")
 
+        # Column selection for export - full width
         selected_columns = st.multiselect(
             "Select columns to export:",
             options=available_columns,
@@ -1405,11 +1383,11 @@ if not st.session_state.damper_table.empty:
     display_table = prepare_display_table()
     column_config = setup_column_config()
 
-    # Render editable table
+    # Render editable table with a unique key to force refresh
     edited_df = st.data_editor(
         display_table,
         key=f"data_editor_{st.session_state.data_editor_key}",
-        num_rows="fixed",
+        num_rows="dynamic",
         use_container_width=True,
         hide_index=True,
         column_config=column_config
@@ -1422,18 +1400,20 @@ if not st.session_state.damper_table.empty:
             if row.get("Select", False):
                 new_selected_rows.add(idx)
 
-        # Update selection state
-        st.session_state.selected_rows = new_selected_rows
+        # Only update if selection changed to avoid unnecessary reruns
+        if new_selected_rows != st.session_state.selected_rows:
+            st.session_state.selected_rows = new_selected_rows
 
-    # Handle edits and recalculations
+    # Handle edits and recalculations (only for non-select columns)
     if not edited_df.equals(display_table):
-        non_select_columns = [col for col in edited_df.columns if col != "Select" and col != "Sr No"]
-        display_non_select = display_table[non_select_columns].reset_index(drop=True)
-        edited_non_select = edited_df[non_select_columns].reset_index(drop=True)
+        # Check if changes are only in Select column
+        non_select_columns = [col for col in edited_df.columns if col != "Select"]
+        display_non_select = display_table[non_select_columns]
+        edited_non_select = edited_df[non_select_columns]
 
         if not edited_non_select.equals(display_non_select):
-            edited_df_clean = handle_table_edits(edited_df)
-            edited_data = edited_df_clean.drop(columns=['Select', 'Sr No'], errors='ignore')
+            edited_df = handle_table_edits(edited_df)
+            edited_data = edited_df.drop(columns=['Select', 'Sr No'], errors='ignore')
             st.session_state.damper_table = edited_data.reset_index(drop=True)
             st.session_state.data_editor_key += 1
             st.rerun()

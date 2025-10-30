@@ -154,7 +154,7 @@ def get_c_factor_from_backend(product, model, max_width, max_height):
 
 
 def damper_selection(airflow_lps, width_mm, height_mm, c_factor, max_width_mm, max_height_mm,
-                     safety_factor_percentage=5.0):
+                     safety_factor_percentage=0):
     """Updated with safety factor as percentage input"""
     try:
         # Convert to float and handle None values
@@ -164,7 +164,7 @@ def damper_selection(airflow_lps, width_mm, height_mm, c_factor, max_width_mm, m
         c_factor = float(c_factor or 0)
         max_width_mm = float(max_width_mm or width_mm)
         max_height_mm = float(max_height_mm or height_mm)
-        safety_factor_percentage = float(safety_factor_percentage or 5.0)
+        safety_factor_percentage = float(safety_factor_percentage or 0)
 
         if width_mm <= 0 or height_mm <= 0:
             raise ValueError("Width and Height must be > 0")
