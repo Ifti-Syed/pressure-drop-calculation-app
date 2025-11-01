@@ -1,4 +1,3 @@
-#
 # # app.py
 # import streamlit as st
 # from datetime import date
@@ -6,7 +5,15 @@
 # import base64
 # import math
 #
-# from config import DEFAULT_PRODUCTS, CATEGORIES
+# # Import with fallback in case CATEGORIES is not defined
+# try:
+#     from config import DEFAULT_PRODUCTS, CATEGORIES
+# except ImportError:
+#     from config import DEFAULT_PRODUCTS
+#
+#     # Define CATEGORIES based on DEFAULT_PRODUCTS if not in config
+#     CATEGORIES = list(DEFAULT_PRODUCTS.keys())
+#
 # from helpers import damper_selection, get_c_factor_from_backend, save_table_as_pdf
 # import styles
 #
@@ -40,6 +47,10 @@
 #         st.session_state.project = ""
 #     if "data_editor_key" not in st.session_state:
 #         st.session_state.data_editor_key = 0
+#     if "rows_to_delete" not in st.session_state:
+#         st.session_state.rows_to_delete = []
+#     if "has_unsaved_changes" not in st.session_state:
+#         st.session_state.has_unsaved_changes = False
 #
 #
 # initialize_session_state()
@@ -55,12 +66,14 @@
 # with col1:
 #     customer = st.text_input(
 #         "Customer Name",
-#         value=st.session_state.get("customer", "")
+#         value=st.session_state.get("customer", ""),
+#         on_change=lambda: setattr(st.session_state, 'has_unsaved_changes', True)
 #     )
 # with col2:
 #     project = st.text_input(
 #         "Project Name",
-#         value=st.session_state.get("project", "")
+#         value=st.session_state.get("project", ""),
+#         on_change=lambda: setattr(st.session_state, 'has_unsaved_changes', True)
 #     )
 # with col3:
 #     report_date = st.date_input("Date", value=date.today())
@@ -89,8 +102,8 @@
 #         # Updated required columns with multiple alternative names
 #         required = [
 #             ["Tag", "tag"],  # Tag column alternatives
-#             ["Width (mm)", "W(mm)", "w_mm"],  # Width column alternatives
-#             ["Height (mm)", "H(mm)", "H_mm"],  # Height column alternatives
+#             ["Width(mm)", "W(mm)", "w_mm"],  # Width column alternatives
+#             ["Height(mm)", "H(mm)", "H_mm"],  # Height column alternatives
 #             ["Airflow (L/s)", "Airflow(l/s)"],  # Airflow column alternatives
 #             ["Product", "product_name"],  # Product column alternatives
 #             ["Model", "model"],  # Model column alternatives
@@ -138,8 +151,8 @@
 #             try:
 #                 # Extract values using standard column names
 #                 tag_no = row.get("Tag", f"Tag_{idx + 1}")
-#                 w_val = row.get("Width (mm)", 0)
-#                 h_val = row.get("Height (mm)", 0)
+#                 w_val = row.get("Width(mm)", 0)
+#                 h_val = row.get("Height(mm)", 0)
 #                 airflow_val = row.get("Airflow (L/s)", 0)
 #                 product_val = row.get("Product", "")
 #                 model_val = row.get("Model", "")
@@ -160,12 +173,22 @@
 #                 # Get category (optional, default to Life Safety Damper)
 #                 category_val = row.get("Category", "Life Safety Damper")
 #
-#                 c_val = get_c_factor_from_backend(product_val, model_val, mw_val, mh_val)
+#                 # Temporary debug - add this right before the C-factor lookup
+#                 print(
+#                     f"DEBUG: Category='{category_val}', Product='{product_val}', Model='{model_val}', Size={mw_val}×{mh_val}")
+#
+#                 c_val = get_c_factor_from_backend(product_val, model_val, mw_val, mh_val, category_val)
 #
 #                 if c_val is None:
-#                     errors.append(
-#                         f"Row {idx + 1}: No C-factor found for {product_val} - {model_val} with size {mw_val}×{mh_val}mm"
-#                     )
+#                     print(f"DEBUG: C-factor not found. Available data:")
+#                     if category_val in DEFAULT_PRODUCTS:
+#                         print(f"  Products in {category_val}: {list(DEFAULT_PRODUCTS[category_val].keys())}")
+#                         if product_val in DEFAULT_PRODUCTS[category_val]:
+#                             print(
+#                                 f"  Models in {product_val}: {list(DEFAULT_PRODUCTS[category_val][product_val].keys())}")
+#                             if model_val in DEFAULT_PRODUCTS[category_val][product_val]:
+#                                 print(
+#                                     f"  Sizes in {model_val}: {[(s['width'], s['height']) for s in DEFAULT_PRODUCTS[category_val][product_val][model_val]]}")
 #                     continue
 #
 #                 res = damper_selection(airflow_val, w_val, h_val, c_val, mw_val, mh_val, safety_val)
@@ -194,12 +217,9 @@
 #             )
 #             st.session_state.uploaded_filename = uploaded_file.name
 #             st.session_state.data_editor_key += 1
+#             st.session_state.has_unsaved_changes = True
 #             st.success(f"✅ Calculated and added {len(results)} rows.")
 #
-#             # Show which column names were used
-#             st.info("📋 Column mapping used:")
-#             for standard_name, actual_name in column_mapping.items():
-#                 st.write(f"• {actual_name} → {standard_name}")
 #         else:
 #             st.info("No valid calculation results produced from the file.")
 #
@@ -209,12 +229,12 @@
 #
 # st.subheader("📂 Bulk Upload Data (CSV / Excel)")
 # uploaded_file = st.file_uploader(
-#     "Upload CSV/Excel with required columns: Tag, Width (mm), Height (mm), Airflow (L/s), Product, Model, MaxSize, Safety Factor",
+#     "Upload CSV/Excel with required columns: Tag, Width(mm), Height(mm), Airflow (L/s), Product, Model, MaxSize, Safety Factor",
 #     type=["csv", "xlsx", "xls"],
 #     help="Accepted column names:\n"
 #          "• Tag: 'Tag' or 'tag'\n"
-#          "• Width: 'Width (mm)', 'W(mm)', or 'w_mm'\n"
-#          "• Height: 'Height (mm)', 'H(mm)', or 'H_mm'\n"
+#          "• Width: 'Width(mm)', 'W(mm)', or 'w_mm'\n"
+#          "• Height: 'Height(mm)', 'H(mm)', or 'H_mm'\n"
 #          "• Airflow: 'Airflow (L/s)' or 'Airflow(l/s)'\n"
 #          "• Product: 'Product' or 'product_name'\n"
 #          "• Model: 'Model' or 'model'\n"
@@ -243,9 +263,14 @@
 #         category = st.selectbox("Category", CATEGORIES, key="category_select")
 #
 #     with col2:
+#         # Safely get product options
+#         product_options = ["Select Product"]
+#         if category in st.session_state.PRODUCT_DATA:
+#             product_options.extend(list(st.session_state.PRODUCT_DATA[category].keys()))
+#
 #         product = st.selectbox(
 #             "Product",
-#             ["Select Product"] + list(st.session_state.PRODUCT_DATA.keys()),
+#             product_options,
 #             key="product_select"
 #         )
 #
@@ -254,23 +279,32 @@
 #     max_width = max_height = c_factor = 0
 #     max_size_str = ""
 #
-#     if product != "Select Product":
+#     if product != "Select Product" and category in st.session_state.PRODUCT_DATA:
 #         with col3:
+#             model_options = ["Select Model"]
+#             if product in st.session_state.PRODUCT_DATA[category]:
+#                 model_options.extend(list(st.session_state.PRODUCT_DATA[category][product].keys()))
+#
 #             model = st.selectbox(
 #                 "Model",
-#                 ["Select Model"] + list(st.session_state.PRODUCT_DATA[product].keys()),
+#                 model_options,
 #                 key="model_select"
 #             )
 #
-#     if model != "Select Model":
-#         sizes = st.session_state.PRODUCT_DATA[product][model]
+#     if model != "Select Model" and category in st.session_state.PRODUCT_DATA and product in \
+#             st.session_state.PRODUCT_DATA[category]:
+#         sizes = st.session_state.PRODUCT_DATA[category][product][model]
 #         sorted_sizes = sorted(sizes, key=lambda x: x['width'] * x['height'], reverse=True)
 #         size_options = [f"{s['width']}×{s['height']}" for s in sorted_sizes]
+#
+#         # Automatically select the largest size (first in sorted_sizes)
+#         default_size = size_options[0] if size_options else "Select Size"
 #
 #         with col4:
 #             selected = st.selectbox(
 #                 "Max Size",
-#                 options=["Select Size"] + size_options,
+#                 options=size_options,
+#                 index=0,  # Select largest by default
 #                 key="size_select"
 #             )
 #
@@ -295,17 +329,16 @@
 #         airflow = st.number_input("Airflow (L/s)", min_value=0.0, value=0.0, step=1.0, key="airflow_input")
 #
 #     with col3:
-#         width = st.number_input("Width (mm)", min_value=0.0, value=0.0, key="width_input")
+#         width = st.number_input("Width(mm)", min_value=0.0, value=0.0, key="width_input")
 #
 #     with col4:
-#         height = st.number_input("Height (mm)", min_value=0.0, value=0.0, key="height_input")
+#         height = st.number_input("Height(mm)", min_value=0.0, value=0.0, key="height_input")
 #
 #     with col5:
-#         # Changed default from 5.0 to 0.0
 #         safety_factor_local = st.number_input(
 #             "Safety Factor Per Section (%)",
 #             min_value=0.0,
-#             value=0.0,  # Changed from 5.0 to 0.0
+#             value=0.0,
 #             step=0.5,
 #             key="safety_factor_local"
 #         )
@@ -345,6 +378,7 @@
 #                     ignore_index=True
 #                 )
 #                 st.session_state.data_editor_key += 1
+#                 st.session_state.has_unsaved_changes = True
 #                 st.success("✅ Manual calculation added to table.")
 #                 st.rerun()
 #
@@ -357,11 +391,12 @@
 # def get_all_max_sizes():
 #     """Get all possible max sizes from product data"""
 #     all_max_sizes = set()
-#     for product_name in st.session_state.PRODUCT_DATA.keys():
-#         for model_name in st.session_state.PRODUCT_DATA[product_name].keys():
-#             sizes = st.session_state.PRODUCT_DATA[product_name][model_name]
-#             for size in sizes:
-#                 all_max_sizes.add(f"{size['width']}×{size['height']}")
+#     for category_name in st.session_state.PRODUCT_DATA.keys():
+#         for product_name in st.session_state.PRODUCT_DATA[category_name].keys():
+#             for model_name in st.session_state.PRODUCT_DATA[category_name][product_name].keys():
+#                 sizes = st.session_state.PRODUCT_DATA[category_name][product_name][model_name]
+#                 for size in sizes:
+#                     all_max_sizes.add(f"{size['width']}×{size['height']}")
 #
 #     return sorted(list(all_max_sizes), key=lambda x: (int(x.split('×')[0]), int(x.split('×')[1])))
 #
@@ -371,13 +406,12 @@
 #     for idx in range(len(edited_df)):
 #         try:
 #             row = edited_df.iloc[idx]
-#             w_val = float(row.get("Width (mm)", 0) or 0)
-#             h_val = float(row.get("Height (mm)", 0) or 0)
+#             w_val = float(row.get("Width(mm)", 0) or 0)
+#             h_val = float(row.get("Height(mm)", 0) or 0)
 #             af_val = float(row.get("Airflow (L/s)", 0) or 0)
 #             prod = row.get("Product", "")
 #             mod = row.get("Model", "")
 #             max_size_str = row.get("Max Size", "")
-#             # Changed default from 5.0 to 0.0
 #             safety_val = float(row.get("Safety Factor (%)", 0.0) or 0.0)
 #
 #             # Parse Max Size and get c_factor
@@ -393,14 +427,17 @@
 #                     continue
 #
 #             # If c_factor not found, try to get default from product data
-#             if not c_val and prod in st.session_state.PRODUCT_DATA and mod in st.session_state.PRODUCT_DATA[prod]:
-#                 sizes = st.session_state.PRODUCT_DATA[prod][mod]
-#                 if sizes:
-#                     default_size = sizes[0]
-#                     max_w = default_size["width"]
-#                     max_h = default_size["height"]
-#                     c_val = default_size["c_factor"]
-#                     edited_df.at[idx, "Max Size"] = f"{max_w}×{max_h}"
+#             category = row.get("Category", "Life Safety Damper")
+#             if not c_val and category in st.session_state.PRODUCT_DATA:
+#                 if prod in st.session_state.PRODUCT_DATA[category] and mod in st.session_state.PRODUCT_DATA[category][
+#                     prod]:
+#                     sizes = st.session_state.PRODUCT_DATA[category][prod][mod]
+#                     if sizes:
+#                         default_size = sizes[0]
+#                         max_w = default_size["width"]
+#                         max_h = default_size["height"]
+#                         c_val = default_size["c_factor"]
+#                         edited_df.at[idx, "Max Size"] = f"{max_w}×{max_h}"
 #
 #             if c_val:
 #                 new_result = damper_selection(af_val, w_val, h_val, c_val, max_w, max_h, safety_val)
@@ -418,7 +455,7 @@
 #
 #
 # def handle_row_movement(direction, selected_indices):
-#     """Handle moving rows up or down"""
+#     """Handle moving rows up or down and clear selection after move"""
 #     if not selected_indices:
 #         st.warning("Please select rows to move first (use the checkboxes).")
 #         return False
@@ -443,6 +480,9 @@
 #                 )
 #
 #     st.session_state.damper_table = current_data.reset_index(drop=True)
+#     # Clear selection after move
+#     st.session_state.selected_rows = set()
+#     st.session_state.has_unsaved_changes = True
 #     st.session_state.data_editor_key += 1
 #     return True
 #
@@ -453,10 +493,8 @@
 #
 #     # Ensure required columns exist
 #     if "Safety Factor (%)" not in display_table.columns:
-#         # Changed default from 5.0 to 0.0
 #         display_table["Safety Factor (%)"] = 0.0
 #     else:
-#         # Changed default from 5.0 to 0.0
 #         display_table["Safety Factor (%)"] = display_table["Safety Factor (%)"].fillna(0.0)
 #
 #     if "Max Size" not in display_table.columns:
@@ -477,7 +515,7 @@
 #     # Define column order
 #     column_order = [
 #         "Sr No", "Select", "Tag No", "Category", "Product", "Model", "Max Size",
-#         "Width (mm)", "Height (mm)", "Airflow (L/s)", "Safety Factor (%)",
+#         "Width(mm)", "Height(mm)", "Airflow (L/s)", "Safety Factor (%)",
 #         "Total Area (m²)", "Velocity (m/s)", "Section Size", "Section Area (m²)", "No of Sections",
 #         "Section Velocity (m/s)", "Section Pressure Drop (Pa)", "Total Pressure Drop (Pa)"
 #     ]
@@ -488,12 +526,17 @@
 #
 # def setup_column_config():
 #     """Setup column configuration for data editor"""
-#     all_products = list(st.session_state.PRODUCT_DATA.keys())
-#
+#     # Get all products and models across categories
+#     all_products = []
 #     all_models = []
-#     for product_name in all_products:
-#         for model_name in st.session_state.PRODUCT_DATA[product_name].keys():
-#             all_models.append(model_name)
+#
+#     for category_name in st.session_state.PRODUCT_DATA.keys():
+#         for product_name in st.session_state.PRODUCT_DATA[category_name].keys():
+#             all_products.append(product_name)
+#             for model_name in st.session_state.PRODUCT_DATA[category_name][product_name].keys():
+#                 all_models.append(model_name)
+#
+#     all_products = list(set(all_products))
 #     all_models = list(set(all_models))
 #
 #     all_max_sizes_list = get_all_max_sizes()
@@ -506,8 +549,8 @@
 #         "Product": st.column_config.SelectboxColumn("Product", options=all_products),
 #         "Model": st.column_config.SelectboxColumn("Model", options=all_models),
 #         "Max Size": st.column_config.SelectboxColumn("Max Size", options=all_max_sizes_list),
-#         "Width (mm)": st.column_config.NumberColumn("Width (mm)", format="%d"),
-#         "Height (mm)": st.column_config.NumberColumn("Height (mm)", format="%d"),
+#         "Width(mm)": st.column_config.NumberColumn("Width(mm)", format="%d"),
+#         "Height(mm)": st.column_config.NumberColumn("Height(mm)", format="%d"),
 #         "Airflow (L/s)": st.column_config.NumberColumn("Airflow (L/s)", format="%.1f"),
 #         "Safety Factor (%)": st.column_config.NumberColumn("Safety Factor (%)", format="%.2f"),
 #         "Total Area (m²)": st.column_config.NumberColumn("Total Area (m²)", format="%.3f", disabled=True),
@@ -528,7 +571,7 @@
 #     # Define the desired column order for export
 #     export_order = [
 #         "Tag No", "Category", "Product", "Model", "Max Size", "Safety Factor (%)",
-#         "Width (mm)", "Height (mm)", "Airflow (L/s)", "Total Area (m²)", "Velocity (m/s)",
+#         "Width(mm)", "Height(mm)", "Airflow (L/s)", "Total Area (m²)", "Velocity (m/s)",
 #         "Section Size", "Section Area (m²)", "No of Sections", "Section Velocity (m/s)",
 #         "Section Pressure Drop (Pa)", "Total Pressure Drop (Pa)"
 #     ]
@@ -546,11 +589,49 @@
 #     return export_data
 #
 #
+# # ✅ DELETE CONFIRMATION DIALOG
+# @st.dialog("⚠️ Confirm Deletion")
+# def confirm_delete_dialog():
+#     st.write("Are you sure you want to delete the **selected rows**?")
+#     colA, colB = st.columns(2)
+#     with colA:
+#         if st.button("✅ Yes, Delete", use_container_width=True):
+#             st.session_state.damper_table = st.session_state.damper_table.drop(
+#                 st.session_state.rows_to_delete
+#             ).reset_index(drop=True)
+#             st.session_state.rows_to_delete = []
+#             st.session_state.selected_rows = set()
+#             st.session_state.has_unsaved_changes = True
+#             st.success("✅ Selected rows deleted successfully!")
+#             st.rerun()
+#     with colB:
+#         if st.button("❌ Cancel", use_container_width=True):
+#             st.rerun()
+#
+#
+# # ✅ CLEAR ALL CONFIRMATION DIALOG
+# @st.dialog("⚠️ Confirm Clear All")
+# def confirm_clear_dialog():
+#     st.write("Are you sure you want to **clear the entire table**?")
+#     st.warning("⚠️ This action cannot be undone.")
+#     colA, colB = st.columns(2)
+#     with colA:
+#         if st.button("✅ Yes, Clear All", use_container_width=True):
+#             st.session_state.damper_table = pd.DataFrame()
+#             st.session_state.selected_rows = set()
+#             st.session_state.has_unsaved_changes = True
+#             st.success("✅ Table cleared!")
+#             st.rerun()
+#     with colB:
+#         if st.button("❌ Cancel", use_container_width=True):
+#             st.rerun()
+#
+#
 # def handle_table_actions(selected_indices):
 #     """Handle all table actions (delete, clear, export)"""
 #     st.subheader("📤 Table Actions")
 #
-#     # Action buttons in a single row - all 6 buttons together
+#     # Action buttons in a single row
 #     col1, col2, col3, col4, col5, col6 = st.columns(6)
 #
 #     with col1:
@@ -560,10 +641,19 @@
 #         move_down = st.button("⬇️ Move Down", use_container_width=True, type="secondary")
 #
 #     with col3:
-#         delete = st.button("🗑️ Delete", use_container_width=True, type="primary")
+#         if st.button("🗑️ Delete Selected", use_container_width=True, type="primary"):
+#             if selected_indices:
+#                 st.session_state.rows_to_delete = selected_indices
+#                 confirm_delete_dialog()
+#             else:
+#                 st.warning("Please select rows to delete first.")
 #
 #     with col4:
-#         clear = st.button("🧹 Clear", use_container_width=True, type="primary")
+#         if st.button("🧹 Clear All", use_container_width=True, type="primary"):
+#             if not st.session_state.damper_table.empty:
+#                 confirm_clear_dialog()
+#             else:
+#                 st.info("No data to clear.")
 #
 #     # Short column mapping with exact names as requested
 #     short_column_mapping = {
@@ -574,8 +664,8 @@
 #         "Model": "Model",
 #         "Max Size": "MaxSize",
 #         "Safety Factor (%)": "SF(%)",
-#         "Width (mm)": "W(mm)",
-#         "Height (mm)": "H(mm)",
+#         "Width(mm)": "W(mm)",
+#         "Height(mm)": "H(mm)",
 #         "Airflow (L/s)": "Airflow(l/s)",
 #         "Total Area (m²)": "T_Area(m²)",
 #         "Velocity (m/s)": "Vel(m/s)",
@@ -651,27 +741,6 @@
 #             st.success("✅ Selected rows moved down!")
 #             st.rerun()
 #
-#     if delete:
-#         if selected_indices:
-#             new_table = st.session_state.damper_table.drop(selected_indices).reset_index(drop=True)
-#             st.session_state.damper_table = new_table
-#             st.session_state.selected_rows = set()
-#             st.session_state.data_editor_key += 1
-#             st.success("✅ Selected rows deleted successfully!")
-#             st.rerun()
-#         else:
-#             st.warning("Please select rows to delete first.")
-#
-#     if clear:
-#         if not st.session_state.damper_table.empty:
-#             st.session_state.damper_table = pd.DataFrame()
-#             st.session_state.selected_rows = set()
-#             st.session_state.data_editor_key += 1
-#             st.success("✅ Table cleared!")
-#             st.rerun()
-#         else:
-#             st.info("No data to clear.")
-#
 #     # Column selection for export - placed below the table action buttons, spanning full width
 #     if not st.session_state.damper_table.empty:
 #         st.markdown("---")
@@ -730,6 +799,7 @@
 #             edited_df = handle_table_edits(edited_df)
 #             edited_data = edited_df.drop(columns=['Select', 'Sr No'], errors='ignore')
 #             st.session_state.damper_table = edited_data.reset_index(drop=True)
+#             st.session_state.has_unsaved_changes = True
 #             st.session_state.data_editor_key += 1
 #             st.rerun()
 #
@@ -745,16 +815,41 @@
 #     "<div class='footer'>🌀 Pressure Drop Calculation Tool — Central Ventilation Systems</div>",
 #     unsafe_allow_html=True,
 # )
+#
+# # ------------------- Simple Page Leave Confirmation -------------------
+# # Add JavaScript for page leave confirmation
+# leave_warning_js = """
+# <script>
+# window.addEventListener('beforeunload', function (e) {
+#     // Always show confirmation when leaving the page
+#     e.preventDefault();
+#     e.returnValue = 'Are you sure you want to leave? Your data may be lost.';
+#     return 'Are you sure you want to leave? Your data may be lost.';
+# });
+# </script>
+# """
+#
+# # Inject the JavaScript
+# st.components.v1.html(leave_warning_js, height=0)
 
+# --------------------------
 
 # app.py
 import streamlit as st
 from datetime import date
 import pandas as pd
-import base64
-import math
+import io
+import csv
 
-from config import DEFAULT_PRODUCTS, CATEGORIES
+# Import with fallback in case CATEGORIES is not defined
+try:
+    from config import DEFAULT_PRODUCTS, CATEGORIES
+except ImportError:
+    from config import DEFAULT_PRODUCTS
+
+    # Define CATEGORIES based on DEFAULT_PRODUCTS if not in config
+    CATEGORIES = list(DEFAULT_PRODUCTS.keys())
+
 from helpers import damper_selection, get_c_factor_from_backend, save_table_as_pdf
 import styles
 
@@ -831,9 +926,16 @@ def process_uploaded_file(uploaded_file):
     try:
         if uploaded_file.name.lower().endswith(".csv"):
             try:
-                df = pd.read_csv(uploaded_file)
-            except Exception:
-                df = pd.read_csv(uploaded_file, encoding="latin1", on_bad_lines="skip")
+                # Try multiple encodings to handle character issues
+                try:
+                    df = pd.read_csv(uploaded_file)
+                except UnicodeDecodeError:
+                    df = pd.read_csv(uploaded_file, encoding='latin1')
+                except Exception:
+                    df = pd.read_csv(uploaded_file, encoding='utf-8', on_bad_lines="skip")
+            except Exception as e:
+                st.error(f"Error reading CSV: {e}")
+                return
         else:
             df = pd.read_excel(uploaded_file)
 
@@ -843,8 +945,8 @@ def process_uploaded_file(uploaded_file):
         # Updated required columns with multiple alternative names
         required = [
             ["Tag", "tag"],  # Tag column alternatives
-            ["Width (mm)", "W(mm)", "w_mm"],  # Width column alternatives
-            ["Height (mm)", "H(mm)", "H_mm"],  # Height column alternatives
+            ["Width(mm)", "W(mm)", "w_mm"],  # Width column alternatives
+            ["Height(mm)", "H(mm)", "H_mm"],  # Height column alternatives
             ["Airflow (L/s)", "Airflow(l/s)"],  # Airflow column alternatives
             ["Product", "product_name"],  # Product column alternatives
             ["Model", "model"],  # Model column alternatives
@@ -892,36 +994,66 @@ def process_uploaded_file(uploaded_file):
             try:
                 # Extract values using standard column names
                 tag_no = row.get("Tag", f"Tag_{idx + 1}")
-                w_val = row.get("Width (mm)", 0)
-                h_val = row.get("Height (mm)", 0)
-                airflow_val = row.get("Airflow (L/s)", 0)
-                product_val = row.get("Product", "")
-                model_val = row.get("Model", "")
-                max_size_str = row.get("MaxSize", "")
-                safety_val = row.get("Safety Factor", 0)
+                w_val = float(row.get("Width(mm)", 0) or 0)
+                h_val = float(row.get("Height(mm)", 0) or 0)
+                airflow_val = float(row.get("Airflow (L/s)", 0) or 0)
+                product_val = str(row.get("Product", "")).strip()
+                model_val = str(row.get("Model", "")).strip()
+                max_size_str = str(row.get("MaxSize", "")).strip()
+                safety_val = float(row.get("Safety Factor", 0) or 0)
 
-                # Parse MaxSize string (format: "300×300")
-                if max_size_str and "×" in max_size_str:
-                    try:
-                        mw_val, mh_val = map(int, max_size_str.split("×"))
-                    except ValueError:
-                        errors.append(f"Row {idx + 1}: Invalid MaxSize format. Use 'width×height' like '300×300'")
+                # Parse MaxSize string - handle different encodings of the multiplication symbol
+                if max_size_str:
+                    # Handle different encodings of multiplication symbol
+                    max_size_str = max_size_str.replace('Ã—', '×').replace('x', '×').replace('X', '×')
+
+                    if "×" in max_size_str:
+                        try:
+                            mw_val, mh_val = map(int, max_size_str.split("×"))
+                        except ValueError:
+                            errors.append(
+                                f"Row {idx + 1}: Invalid MaxSize format '{max_size_str}'. Use 'width×height' like '300×300'")
+                            continue
+                    else:
+                        errors.append(
+                            f"Row {idx + 1}: MaxSize is required and should be in format 'width×height'. Got: '{max_size_str}'")
                         continue
                 else:
                     errors.append(f"Row {idx + 1}: MaxSize is required and should be in format 'width×height'")
                     continue
 
                 # Get category (optional, default to Life Safety Damper)
-                category_val = row.get("Category", "Life Safety Damper")
+                category_val = str(row.get("Category", "Life Safety Damper")).strip()
 
-                c_val = get_c_factor_from_backend(product_val, model_val, mw_val, mh_val)
+                # Get C-factor with proper error handling
+                c_val = get_c_factor_from_backend(category_val, product_val, model_val, mw_val, mh_val)
 
                 if c_val is None:
-                    errors.append(
-                        f"Row {idx + 1}: No C-factor found for {product_val} - {model_val} with size {mw_val}×{mh_val}mm"
-                    )
+                    error_msg = f"Row {idx + 1}: C-factor not found for {category_val} > {product_val} > {model_val} > {mw_val}×{mh_val}"
+                    errors.append(error_msg)
+
+                    # Enhanced debug information
+                    debug_info = []
+                    if category_val in st.session_state.PRODUCT_DATA:
+                        available_products = list(st.session_state.PRODUCT_DATA[category_val].keys())
+                        debug_info.append(f"Available products in {category_val}: {available_products}")
+
+                        if product_val in st.session_state.PRODUCT_DATA[category_val]:
+                            available_models = list(st.session_state.PRODUCT_DATA[category_val][product_val].keys())
+                            debug_info.append(f"Available models in {product_val}: {available_models}")
+
+                            if model_val in st.session_state.PRODUCT_DATA[category_val][product_val]:
+                                available_sizes = [(s['width'], s['height']) for s in
+                                                   st.session_state.PRODUCT_DATA[category_val][product_val][model_val]]
+                                debug_info.append(f"Available sizes in {model_val}: {available_sizes}")
+
+                    if debug_info:
+                        st.write(f"Debug info for row {idx + 1}:")
+                        for info in debug_info:
+                            st.write(f"  - {info}")
                     continue
 
+                # Perform damper selection calculation
                 res = damper_selection(airflow_val, w_val, h_val, c_val, mw_val, mh_val, safety_val)
                 if res:
                     res["Category"] = category_val
@@ -934,11 +1066,15 @@ def process_uploaded_file(uploaded_file):
 
             except Exception as e:
                 errors.append(f"Row {idx + 1}: {str(e)}")
+                import traceback
+                st.write(f"Detailed error: {traceback.format_exc()}")
 
         if errors:
             st.warning(f"⚠️ {len(errors)} errors found during processing:")
-            for error in errors:
+            for error in errors[:10]:  # Show first 10 errors to avoid overwhelming
                 st.write(f"• {error}")
+            if len(errors) > 10:
+                st.write(f"• ... and {len(errors) - 10} more errors")
 
         if results:
             bulk_df = pd.DataFrame(results)
@@ -951,25 +1087,23 @@ def process_uploaded_file(uploaded_file):
             st.session_state.has_unsaved_changes = True
             st.success(f"✅ Calculated and added {len(results)} rows.")
 
-            # Show which column names were used
-            # st.info("📋 Column mapping used:")
-            # for standard_name, actual_name in column_mapping.items():
-            #     st.write(f"• {actual_name} → {standard_name}")
         else:
             st.info("No valid calculation results produced from the file.")
 
     except Exception as e:
         st.error(f"Upload error: {e}")
+        import traceback
+        st.write(f"Detailed upload error: {traceback.format_exc()}")
 
 
 st.subheader("📂 Bulk Upload Data (CSV / Excel)")
 uploaded_file = st.file_uploader(
-    "Upload CSV/Excel with required columns: Tag, Width (mm), Height (mm), Airflow (L/s), Product, Model, MaxSize, Safety Factor",
+    "Upload CSV/Excel with required columns: Tag, Width(mm), Height(mm), Airflow (L/s), Product, Model, MaxSize, Safety Factor",
     type=["csv", "xlsx", "xls"],
     help="Accepted column names:\n"
          "• Tag: 'Tag' or 'tag'\n"
-         "• Width: 'Width (mm)', 'W(mm)', or 'w_mm'\n"
-         "• Height: 'Height (mm)', 'H(mm)', or 'H_mm'\n"
+         "• Width: 'Width(mm)', 'W(mm)', or 'w_mm'\n"
+         "• Height: 'Height(mm)', 'H(mm)', or 'H_mm'\n"
          "• Airflow: 'Airflow (L/s)' or 'Airflow(l/s)'\n"
          "• Product: 'Product' or 'product_name'\n"
          "• Model: 'Model' or 'model'\n"
@@ -998,9 +1132,14 @@ def handle_manual_calculation():
         category = st.selectbox("Category", CATEGORIES, key="category_select")
 
     with col2:
+        # Safely get product options
+        product_options = ["Select Product"]
+        if category in st.session_state.PRODUCT_DATA:
+            product_options.extend(list(st.session_state.PRODUCT_DATA[category].keys()))
+
         product = st.selectbox(
             "Product",
-            ["Select Product"] + list(st.session_state.PRODUCT_DATA.keys()),
+            product_options,
             key="product_select"
         )
 
@@ -1009,40 +1148,46 @@ def handle_manual_calculation():
     max_width = max_height = c_factor = 0
     max_size_str = ""
 
-    if product != "Select Product":
+    if product != "Select Product" and category in st.session_state.PRODUCT_DATA:
         with col3:
+            model_options = ["Select Model"]
+            if product in st.session_state.PRODUCT_DATA[category]:
+                model_options.extend(list(st.session_state.PRODUCT_DATA[category][product].keys()))
+
             model = st.selectbox(
                 "Model",
-                ["Select Model"] + list(st.session_state.PRODUCT_DATA[product].keys()),
+                model_options,
                 key="model_select"
             )
 
-    if model != "Select Model":
-        sizes = st.session_state.PRODUCT_DATA[product][model]
-        sorted_sizes = sorted(sizes, key=lambda x: x['width'] * x['height'], reverse=True)
-        size_options = [f"{s['width']}×{s['height']}" for s in sorted_sizes]
+    if model != "Select Model" and category in st.session_state.PRODUCT_DATA and product in \
+            st.session_state.PRODUCT_DATA[category]:
+        if model in st.session_state.PRODUCT_DATA[category][product]:
+            sizes = st.session_state.PRODUCT_DATA[category][product][model]
+            sorted_sizes = sorted(sizes, key=lambda x: x['width'] * x['height'], reverse=True)
+            size_options = [f"{s['width']}×{s['height']}" for s in sorted_sizes]
 
-        # Automatically select the largest size (first in sorted_sizes)
-        default_size = size_options[0] if size_options else "Select Size"
+            # Automatically select the largest size (first in sorted_sizes)
+            default_size = size_options[0] if size_options else "Select Size"
 
-        with col4:
-            selected = st.selectbox(
-                "Max Size",
-                options=size_options,
-                index=0,  # Select largest by default
-                key="size_select"
-            )
+            with col4:
+                selected = st.selectbox(
+                    "Max Size",
+                    options=size_options,
+                    index=0,  # Select largest by default
+                    key="size_select"
+                )
 
-        if selected != "Select Size":
-            try:
-                max_width, max_height = map(int, selected.split("×"))
-                for size_data in sorted_sizes:
-                    if size_data["width"] == max_width and size_data["height"] == max_height:
-                        c_factor = size_data["c_factor"]
-                        break
-                max_size_str = selected
-            except ValueError:
-                st.error("Invalid size format. Please select a valid size.")
+            if selected != "Select Size":
+                try:
+                    max_width, max_height = map(int, selected.split("×"))
+                    # Use the same function as bulk upload for consistency
+                    c_factor = get_c_factor_from_backend(category, product, model, max_width, max_height)
+                    if c_factor is None:
+                        st.error(f"C-factor not found for selected size {selected}")
+                    max_size_str = selected
+                except ValueError:
+                    st.error("Invalid size format. Please select a valid size.")
 
     # Second line: Tag, Airflow, Width, Height, Safety Factor
     col1, col2, col3, col4, col5 = st.columns(5)
@@ -1054,10 +1199,10 @@ def handle_manual_calculation():
         airflow = st.number_input("Airflow (L/s)", min_value=0.0, value=0.0, step=1.0, key="airflow_input")
 
     with col3:
-        width = st.number_input("Width (mm)", min_value=0.0, value=0.0, key="width_input")
+        width = st.number_input("Width(mm)", min_value=0.0, value=0.0, key="width_input")
 
     with col4:
-        height = st.number_input("Height (mm)", min_value=0.0, value=0.0, key="height_input")
+        height = st.number_input("Height(mm)", min_value=0.0, value=0.0, key="height_input")
 
     with col5:
         safety_factor_local = st.number_input(
@@ -1088,6 +1233,8 @@ def handle_manual_calculation():
             st.warning("Select product, model and size first.")
         elif not tag_no:
             st.warning("Please enter a Tag No.")
+        elif c_factor is None:
+            st.error("C-factor not found for the selected configuration. Please check your selection.")
         else:
             res = damper_selection(airflow, width_mm, height_mm, c_factor, max_width, max_height, safety_factor_local)
             if res:
@@ -1112,15 +1259,47 @@ handle_manual_calculation()
 st.markdown("---")
 
 
+# Add this after the bulk upload section
+# def test_c_factor_lookup():
+#     """Test function to verify C-factor lookup works"""
+#     st.sidebar.subheader("🧪 Test C-factor Lookup")
+#
+#     test_category = st.sidebar.selectbox("Test Category", CATEGORIES, key="test_category")
+#
+#     if test_category in st.session_state.PRODUCT_DATA:
+#         test_products = list(st.session_state.PRODUCT_DATA[test_category].keys())
+#         test_product = st.sidebar.selectbox("Test Product", test_products, key="test_product")
+#
+#         if test_product in st.session_state.PRODUCT_DATA[test_category]:
+#             test_models = list(st.session_state.PRODUCT_DATA[test_category][test_product].keys())
+#             test_model = st.sidebar.selectbox("Test Model", test_models, key="test_model")
+#
+#             if test_model in st.session_state.PRODUCT_DATA[test_category][test_product]:
+#                 sizes = st.session_state.PRODUCT_DATA[test_category][test_product][test_model]
+#                 if sizes:
+#                     test_size = st.sidebar.selectbox("Test Size",
+#                                                      [f"{s['width']}×{s['height']}" for s in sizes], key="test_size")
+#
+#                     if st.sidebar.button("Test Lookup"):
+#                         test_w, test_h = map(int, test_size.split("×"))
+#                         result = get_c_factor_from_backend(test_category, test_product, test_model, test_w, test_h)
+#                         st.sidebar.success(f"Result: {result}")
+#
+#
+# # Call the test function
+# test_c_factor_lookup()
+
+
 # ------------------- Project Summary -------------------
 def get_all_max_sizes():
     """Get all possible max sizes from product data"""
     all_max_sizes = set()
-    for product_name in st.session_state.PRODUCT_DATA.keys():
-        for model_name in st.session_state.PRODUCT_DATA[product_name].keys():
-            sizes = st.session_state.PRODUCT_DATA[product_name][model_name]
-            for size in sizes:
-                all_max_sizes.add(f"{size['width']}×{size['height']}")
+    for category_name in st.session_state.PRODUCT_DATA.keys():
+        for product_name in st.session_state.PRODUCT_DATA[category_name].keys():
+            for model_name in st.session_state.PRODUCT_DATA[category_name][product_name].keys():
+                sizes = st.session_state.PRODUCT_DATA[category_name][product_name][model_name]
+                for size in sizes:
+                    all_max_sizes.add(f"{size['width']}×{size['height']}")
 
     return sorted(list(all_max_sizes), key=lambda x: (int(x.split('×')[0]), int(x.split('×')[1])))
 
@@ -1130,44 +1309,44 @@ def handle_table_edits(edited_df):
     for idx in range(len(edited_df)):
         try:
             row = edited_df.iloc[idx]
-            w_val = float(row.get("Width (mm)", 0) or 0)
-            h_val = float(row.get("Height (mm)", 0) or 0)
+            w_val = float(row.get("Width(mm)", 0) or 0)
+            h_val = float(row.get("Height(mm)", 0) or 0)
             af_val = float(row.get("Airflow (L/s)", 0) or 0)
             prod = row.get("Product", "")
             mod = row.get("Model", "")
-            max_size_str = row.get("Max Size", "")
+            max_size_str = str(row.get("Max Size", "")).strip()
             safety_val = float(row.get("Safety Factor (%)", 0.0) or 0.0)
+            category = row.get("Category", "Life Safety Damper")
 
-            # Parse Max Size and get c_factor
+            # Parse Max Size and get c_factor - handle encoding issues
             max_w = max_h = 0
             c_val = None
 
-            if max_size_str and "×" in max_size_str:
-                try:
-                    max_w, max_h = map(int, max_size_str.split("×"))
-                    c_val = get_c_factor_from_backend(prod, mod, max_w, max_h)
-                except ValueError:
-                    st.error(f"Row {idx + 1}: Invalid Max Size format. Use 'width×height'")
+            if max_size_str:
+                # Fix encoding issues in Max Size
+                max_size_str = max_size_str.replace('Ã—', '×').replace('x', '×').replace('X', '×')
+
+                if "×" in max_size_str:
+                    try:
+                        max_w, max_h = map(int, max_size_str.split("×"))
+                        c_val = get_c_factor_from_backend(category, prod, mod, max_w, max_h)
+                    except ValueError:
+                        st.error(f"Row {idx + 1}: Invalid Max Size format. Use 'width×height'")
+                        continue
+                else:
+                    st.error(f"Row {idx + 1}: Max Size format should be 'width×height'")
                     continue
 
-            # If c_factor not found, try to get default from product data
-            if not c_val and prod in st.session_state.PRODUCT_DATA and mod in st.session_state.PRODUCT_DATA[prod]:
-                sizes = st.session_state.PRODUCT_DATA[prod][mod]
-                if sizes:
-                    default_size = sizes[0]
-                    max_w = default_size["width"]
-                    max_h = default_size["height"]
-                    c_val = default_size["c_factor"]
-                    edited_df.at[idx, "Max Size"] = f"{max_w}×{max_h}"
+            if c_val is None:
+                st.error(f"Row {idx + 1}: C-factor not found for {category} > {prod} > {mod} > {max_size_str}")
+                continue
 
-            if c_val:
-                new_result = damper_selection(af_val, w_val, h_val, c_val, max_w, max_h, safety_val)
-                if new_result:
-                    for calc_col in new_result:
-                        if calc_col in edited_df.columns:
-                            edited_df.at[idx, calc_col] = new_result[calc_col]
-            else:
-                st.error(f"Row {idx + 1}: Could not find C-factor for {prod} - {mod} with size {max_size_str}")
+            # Recalculate with new parameters
+            new_result = damper_selection(af_val, w_val, h_val, c_val, max_w, max_h, safety_val)
+            if new_result:
+                for calc_col in new_result:
+                    if calc_col in edited_df.columns:
+                        edited_df.at[idx, calc_col] = new_result[calc_col]
 
         except Exception as e:
             st.error(f"Error recalculating row {idx + 1}: {str(e)}")
@@ -1176,40 +1355,66 @@ def handle_table_edits(edited_df):
 
 
 def handle_row_movement(direction, selected_indices):
-    """Handle moving rows up or down and clear selection after move"""
+    """Handle moving multiple rows up or down and clear selection after move"""
     if not selected_indices:
         st.warning("Please select rows to move first (use the checkboxes).")
         return False
 
     current_data = st.session_state.damper_table.reset_index(drop=True)
+    selected_indices = sorted(selected_indices)
 
     if direction == "up":
-        selected_indices = sorted(selected_indices)
+        # Check if we can move up (first selected row should not be at position 0)
+        if selected_indices[0] == 0:
+            st.warning("Cannot move up: first selected row is already at the top.")
+            return False
+
+        # Create a copy of the data
+        new_data = current_data.copy()
+
+        # Move all selected rows up by one position
         for idx in selected_indices:
-            if idx > 0 and (idx - 1) not in selected_indices:
-                current_data.iloc[idx - 1], current_data.iloc[idx] = (
-                    current_data.iloc[idx].copy(),
-                    current_data.iloc[idx - 1].copy()
-                )
-    else:  # down
-        selected_indices = sorted(selected_indices, reverse=True)
-        for idx in selected_indices:
-            if idx < len(current_data) - 1 and (idx + 1) not in selected_indices:
-                current_data.iloc[idx], current_data.iloc[idx + 1] = (
-                    current_data.iloc[idx + 1].copy(),
-                    current_data.iloc[idx].copy()
+            if idx > 0:
+                # Swap current row with the row above
+                new_data.iloc[idx - 1], new_data.iloc[idx] = (
+                    new_data.iloc[idx].copy(),
+                    new_data.iloc[idx - 1].copy()
                 )
 
-    st.session_state.damper_table = current_data.reset_index(drop=True)
-    # Clear selection after move
-    st.session_state.selected_rows = set()
+        # Update the selected indices after movement
+        new_selected_indices = [idx - 1 for idx in selected_indices]
+
+    else:  # down
+        # Check if we can move down (last selected row should not be at the last position)
+        if selected_indices[-1] == len(current_data) - 1:
+            st.warning("Cannot move down: last selected row is already at the bottom.")
+            return False
+
+        # Create a copy of the data
+        new_data = current_data.copy()
+
+        # Move all selected rows down by one position (process from bottom to top)
+        for idx in reversed(selected_indices):
+            if idx < len(current_data) - 1:
+                # Swap current row with the row below
+                new_data.iloc[idx], new_data.iloc[idx + 1] = (
+                    new_data.iloc[idx + 1].copy(),
+                    new_data.iloc[idx].copy()
+                )
+
+        # Update the selected indices after movement
+        new_selected_indices = [idx + 1 for idx in selected_indices]
+
+    st.session_state.damper_table = new_data.reset_index(drop=True)
+    # Update selection to maintain the moved rows as selected
+    st.session_state.selected_rows = set(new_selected_indices)
     st.session_state.has_unsaved_changes = True
     st.session_state.data_editor_key += 1
     return True
 
 
 def prepare_display_table():
-    """Prepare the display table with all necessary columns"""
+    """Prepare the display table with all necessary columns - UPDATED COLUMN ORDER"""
     display_table = st.session_state.damper_table.copy()
 
     # Ensure required columns exist
@@ -1223,20 +1428,21 @@ def prepare_display_table():
     else:
         display_table["Max Size"] = display_table["Max Size"].fillna("")
 
-    # Add helper columns
-    display_table.insert(0, "Sr No", [str(i) for i in range(1, len(display_table) + 1)])
-
+    # Add helper columns - UPDATED ORDER: Select first, then Sr No
     # Initialize Select column based on session state
-    display_table.insert(1, "Select", False)
+    display_table.insert(0, "Select", False)
     if st.session_state.selected_rows:
         for idx in st.session_state.selected_rows:
             if idx < len(display_table):
                 display_table.at[idx, "Select"] = True
 
+    # Add Sr No as second column
+    display_table.insert(1, "Sr No", [str(i) for i in range(1, len(display_table) + 1)])
+
     # Define column order
     column_order = [
-        "Sr No", "Select", "Tag No", "Category", "Product", "Model", "Max Size",
-        "Width (mm)", "Height (mm)", "Airflow (L/s)", "Safety Factor (%)",
+        "Select", "Sr No", "Tag No", "Category", "Product", "Model", "Max Size",
+        "Width(mm)", "Height(mm)", "Airflow (L/s)", "Safety Factor (%)",
         "Total Area (m²)", "Velocity (m/s)", "Section Size", "Section Area (m²)", "No of Sections",
         "Section Velocity (m/s)", "Section Pressure Drop (Pa)", "Total Pressure Drop (Pa)"
     ]
@@ -1246,27 +1452,32 @@ def prepare_display_table():
 
 
 def setup_column_config():
-    """Setup column configuration for data editor"""
-    all_products = list(st.session_state.PRODUCT_DATA.keys())
-
+    """Setup column configuration for data editor - UPDATED COLUMN ORDER"""
+    # Get all products and models across categories
+    all_products = []
     all_models = []
-    for product_name in all_products:
-        for model_name in st.session_state.PRODUCT_DATA[product_name].keys():
-            all_models.append(model_name)
+
+    for category_name in st.session_state.PRODUCT_DATA.keys():
+        for product_name in st.session_state.PRODUCT_DATA[category_name].keys():
+            all_products.append(product_name)
+            for model_name in st.session_state.PRODUCT_DATA[category_name][product_name].keys():
+                all_models.append(model_name)
+
+    all_products = list(set(all_products))
     all_models = list(set(all_models))
 
     all_max_sizes_list = get_all_max_sizes()
 
     return {
-        "Sr No": st.column_config.TextColumn("Sr No", disabled=True),
-        "Select": st.column_config.CheckboxColumn("Select"),
+        "Select": st.column_config.CheckboxColumn("Select", width="small"),
+        "Sr No": st.column_config.TextColumn("Sr No", disabled=True, width="small"),
         "Tag No": st.column_config.TextColumn("Tag No"),
         "Category": st.column_config.SelectboxColumn("Category", options=CATEGORIES),
         "Product": st.column_config.SelectboxColumn("Product", options=all_products),
         "Model": st.column_config.SelectboxColumn("Model", options=all_models),
         "Max Size": st.column_config.SelectboxColumn("Max Size", options=all_max_sizes_list),
-        "Width (mm)": st.column_config.NumberColumn("Width (mm)", format="%d"),
-        "Height (mm)": st.column_config.NumberColumn("Height (mm)", format="%d"),
+        "Width(mm)": st.column_config.NumberColumn("Width(mm)", format="%d"),
+        "Height(mm)": st.column_config.NumberColumn("Height(mm)", format="%d"),
         "Airflow (L/s)": st.column_config.NumberColumn("Airflow (L/s)", format="%.1f"),
         "Safety Factor (%)": st.column_config.NumberColumn("Safety Factor (%)", format="%.2f"),
         "Total Area (m²)": st.column_config.NumberColumn("Total Area (m²)", format="%.3f", disabled=True),
@@ -1287,7 +1498,7 @@ def get_export_data_in_order(selected_columns):
     # Define the desired column order for export
     export_order = [
         "Tag No", "Category", "Product", "Model", "Max Size", "Safety Factor (%)",
-        "Width (mm)", "Height (mm)", "Airflow (L/s)", "Total Area (m²)", "Velocity (m/s)",
+        "Width(mm)", "Height(mm)", "Airflow (L/s)", "Total Area (m²)", "Velocity (m/s)",
         "Section Size", "Section Area (m²)", "No of Sections", "Section Velocity (m/s)",
         "Section Pressure Drop (Pa)", "Total Pressure Drop (Pa)"
     ]
@@ -1303,6 +1514,27 @@ def get_export_data_in_order(selected_columns):
     export_data.insert(0, "Sr No", [str(i) for i in range(1, len(export_data) + 1)])
 
     return export_data
+
+
+def export_to_csv_fixed(df):
+    """Export DataFrame to CSV with proper encoding for special characters"""
+    output = io.StringIO()
+
+    # Write CSV with proper handling of special characters
+    writer = csv.writer(output, quoting=csv.QUOTE_MINIMAL)
+
+    # Write header
+    writer.writerow(df.columns.tolist())
+
+    # Write data rows
+    for _, row in df.iterrows():
+        writer.writerow([str(cell) for cell in row])
+
+    # Get the CSV content and ensure proper encoding
+    csv_content = output.getvalue()
+    output.close()
+
+    return csv_content
 
 
 # ✅ DELETE CONFIRMATION DIALOG
@@ -1380,8 +1612,8 @@ def handle_table_actions(selected_indices):
         "Model": "Model",
         "Max Size": "MaxSize",
         "Safety Factor (%)": "SF(%)",
-        "Width (mm)": "W(mm)",
-        "Height (mm)": "H(mm)",
+        "Width(mm)": "W(mm)",
+        "Height(mm)": "H(mm)",
         "Airflow (L/s)": "Airflow(l/s)",
         "Total Area (m²)": "T_Area(m²)",
         "Velocity (m/s)": "Vel(m/s)",
@@ -1406,11 +1638,16 @@ def handle_table_actions(selected_indices):
             # Always show the CSV button, just disable if no columns selected
             export_data = get_export_data_in_order(st.session_state.export_columns)
             export_data_short = export_data.rename(columns=short_column_mapping)
-            csv_data = export_data_short.to_csv(index=False)
+
+            # Use the fixed export function
+            csv_data = export_to_csv_fixed(export_data_short)
+
+            # Add BOM for Excel compatibility and encode to bytes
+            csv_bytes = ('\ufeff' + csv_data).encode('utf-8-sig')
 
             st.download_button(
                 "💾 Save CSV",
-                csv_data,
+                csv_bytes,
                 file_name=f"{customer}_{project}.csv",
                 mime="text/csv",
                 use_container_width=True,
@@ -1473,6 +1710,8 @@ def handle_table_actions(selected_indices):
         st.session_state.export_columns = selected_columns
 
 
+
+
 # Main Project Summary Section
 st.subheader("📊 Project Summary")
 
@@ -1525,6 +1764,10 @@ if not st.session_state.damper_table.empty:
 else:
     st.info("No data yet. Add manually or upload a CSV/Excel to calculate automatically.")
 
+
+
+
+
 # ------------------- Footer -------------------
 st.markdown("---")
 st.markdown(
@@ -1532,84 +1775,18 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Enhanced JavaScript for page leave confirmation with better detection
+# ------------------- Simple Page Leave Confirmation -------------------
+# Add JavaScript for page leave confirmation
 leave_warning_js = """
 <script>
-// Function to check if there's data that might be lost
-function hasUnsavedData() {
-    // Check if there's any data in the table
-    const dataFrame = document.querySelector('[data-testid="stDataFrame"]');
-    if (dataFrame) {
-        return true;
-    }
-
-    // Check if there are any input fields with values
-    const inputs = document.querySelectorAll('input[type="text"], input[type="number"], textarea');
-    for (let input of inputs) {
-        if (input.value && input.value.trim() !== '') {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-// Set up beforeunload event listener
 window.addEventListener('beforeunload', function (e) {
-    // This is a simplified check - in a real app you might want more sophisticated logic
-    const hasData = hasUnsavedData();
-
-    if (hasData) {
-        e.preventDefault();
-        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
-        return 'You have unsaved changes. Are you sure you want to leave?';
-    }
+    // Always show confirmation when leaving the page
+    e.preventDefault();
+    e.returnValue = 'Are you sure you want to leave? Your data may be lost.';
+    return 'Are you sure you want to leave? Your data may be lost.';
 });
-
-// Also set up for page hide (for tab/window closing)
-window.addEventListener('pagehide', function (e) {
-    const hasData = hasUnsavedData();
-
-    if (hasData) {
-        e.preventDefault();
-        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
-        return 'You have unsaved changes. Are you sure you want to leave?';
-    }
-});
-
-// Enhanced detection for Streamlit-specific elements
-function checkForStreamlitData() {
-    // Check for data editor
-    const dataEditor = document.querySelector('[data-testid="stDataFrame"]');
-    if (dataEditor) {
-        return true;
-    }
-
-    // Check for any tables with data
-    const tables = document.querySelectorAll('table');
-    for (let table of tables) {
-        const rows = table.querySelectorAll('tr');
-        if (rows.length > 1) { // More than just header row
-            return true;
-        }
-    }
-
-    return false;
-}
-
-// Periodically check for data
-setInterval(function() {
-    window.hasUnsavedChanges = checkForStreamlitData() || hasUnsavedData();
-}, 2000);
 </script>
 """
 
 # Inject the JavaScript
 st.components.v1.html(leave_warning_js, height=0)
-
-# Also add a hidden element to track unsaved changes
-if st.session_state.has_unsaved_changes:
-    st.markdown(
-        '<div id="unsaved-changes-marker" style="display: none;">UNSAVED_CHANGES</div>',
-        unsafe_allow_html=True
-    )
